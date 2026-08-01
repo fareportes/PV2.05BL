@@ -1,0 +1,1447 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Carga Masiva Proximos a V - Sistema de Gestión</title>
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <style>
+        :root {
+            --primary-color: #0056b3;
+            --secondary-color: #28a745;
+            --dark-color: #333;
+            --light-color: #f8f9fa;
+            --border-color: #dee2e6;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #eef2f7;
+            margin: 0;
+            padding: 0;
+            color: var(--dark-color);
+        }
+
+        #login-container {
+            width: 100%;
+            max-width: 400px;
+            margin: 100px auto;
+            background: #fff;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        }
+
+        #dashboard {
+            display: none;
+        }
+
+        header {
+            background-color: var(--primary-color);
+            color: white;
+            padding: 15px 30px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .container {
+            max-width: 1750px;
+            margin: 30px auto;
+            padding: 0 20px;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: 1fr 2.5fr;
+            gap: 20px;
+        }
+
+        @media (max-width: 992px) {
+            .grid { grid-template-columns: 1fr; }
+        }
+
+        .card {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+            margin-bottom: 20px;
+        }
+
+        h2 {
+            margin-top: 0;
+            color: var(--primary-color);
+            border-bottom: 2px solid var(--light-color);
+            padding-bottom: 10px;
+        }
+
+        .form-group {
+            margin-bottom: 15px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 600;
+        }
+
+        input, select {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+
+        .select-interactivo {
+            padding: 6px;
+            font-size: 0.9em;
+            font-weight: bold;
+            border-radius: 4px;
+            border: 1px solid #ccc;
+            cursor: pointer;
+            width: auto;
+        }
+
+        button {
+            background-color: var(--primary-color);
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: bold;
+            width: 100%;
+        }
+
+        button:hover { opacity: 0.9; }
+        .btn-secondary { background-color: #6c757d; width: auto; }
+        .btn-success { background-color: var(--secondary-color); }
+        .btn-excel { background-color: #107c41; color: white; margin-bottom: 15px; width: 100%; font-size: 1.05em; padding: 12px; }
+        .btn-download-masivo { background-color: #2e7d32; color: white; margin-bottom: 10px; width: 100%; font-size: 0.95em; padding: 10px; }
+        .btn-backup { background-color: #7030a0; color: white; margin-bottom: 10px; }
+        
+        .btn-action { padding: 5px 10px; font-size: 0.85em; width: auto; font-weight: bold; margin-right: 4px; border-radius: 4px; }
+        
+        .btn-role-toggle { border: 1px solid transparent; cursor: pointer; display: inline-block; padding: 5px 12px; font-size: 0.85em; font-weight: bold; border-radius: 4px; text-align: center; width: 85px; }
+        .btn-role-admin { background-color: #e3f2fd; color: #0d47a1; border-color: #bbdefb; }
+        .btn-role-admin:hover { background-color: #d0e8fd; }
+        .btn-role-user { background-color: #e8f5e9; color: #1b5e20; border-color: #c8e6c9; }
+        .btn-role-user:hover { background-color: #dcedd5; }
+
+        .btn-password { background-color: #ffc107; color: #212529; }
+        .btn-password:hover { background-color: #e0a800; }
+        .btn-delete-item { background-color: #dc3545; color: white; padding: 4px 8px; font-size: 0.85em; width: auto; font-weight: bold; border-radius: 4px; border: none; }
+        .btn-delete-item:hover { background-color: #c82333; }
+
+        .filter-box {
+            background-color: #f8f9fa;
+            border: 1px solid var(--border-color);
+            padding: 15px;
+            border-radius: 6px;
+            margin-bottom: 15px;
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 15px;
+        }
+
+        @media (max-width: 768px) {
+            .filter-box { grid-template-columns: 1fr; }
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 15px;
+        }
+
+        th, td {
+            padding: 10px;
+            text-align: left;
+            border-bottom: 1px solid var(--border-color);
+            vertical-align: middle;
+            font-size: 0.92em;
+        }
+
+        th {
+            background-color: var(--light-color);
+            color: var(--dark-color);
+        }
+
+        .badge {
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 0.85em;
+            font-weight: bold;
+            display: inline-block;
+        }
+        .badge-date { background-color: #fff3cd; color: #856404; font-size: 1em; padding: 8px 12px; border: 1px solid #ffeeba; }
+        .badge-sucursal { background-color: #e2f0d9; color: #385723; }
+        .badge-venta { background-color: #e1f5fe; color: #0288d1; border: 1px solid #b3e5fc; }
+        
+        .badge-recuperable { background-color: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+        .badge-irrecuperable { background-color: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+
+        .clickable-product {
+            color: #0056b3;
+            cursor: pointer;
+            text-decoration: underline dashed 1px;
+        }
+        .clickable-product:hover {
+            color: #003d82;
+            background-color: #f0f4f8;
+        }
+
+        .modal {
+            display: none; 
+            position: fixed; 
+            z-index: 1000; 
+            left: 0;
+            top: 0;
+            width: 100%; 
+            height: 100%; 
+            overflow: auto; 
+            background-color: rgba(0,0,0,0.5); 
+            animation: fadeIn 0.3s;
+        }
+
+        .modal-content {
+            background-color: #fff;
+            margin: 10% auto; 
+            padding: 25px;
+            border-radius: 8px;
+            width: 90%;
+            max-width: 550px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+            position: relative;
+        }
+
+        .modal-content h2 { margin-bottom: 15px; }
+
+        .close-modal {
+            color: #aaa;
+            position: absolute;
+            top: 15px;
+            right: 20px;
+            font-size: 28px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+
+        .close-modal:hover { color: #333; }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+    </style>
+</head>
+<body>
+
+    <div id="top10-modal" class="modal">
+        <div class="modal-content">
+            <span class="close-modal" onclick="cerrarModal()">&times;</span>
+            <h2 id="modal-producto-titulo" style="color: #0056b3; font-size: 1.4em; border-bottom: 2px solid #eef2f7; margin-bottom: 15px; padding-bottom: 5px;">Top 10 Farmacias con Mayor Venta</h2>
+            <p id="modal-producto-sub" style="font-style: italic; color: #555; font-size: 0.95em;"></p>
+            <div style="max-height: 350px; overflow-y: auto;">
+                <table id="modal-top10-table">
+                    <thead>
+                        <tr>
+                            <th style="width: 20%; text-align: center;">Puesto</th>
+                            <th>Sucursal</th>
+                            <th style="text-align: right;">Cantidad Vendida</th>
+                        </tr>
+                    </thead>
+                    <tbody></tbody>
+                </table>
+            </div>
+            <button onclick="cerrarModal()" style="margin-top: 15px; background-color: #6c757d;">Cerrar Ventana</button>
+        </div>
+    </div>
+
+    <div id="login-container">
+        <h2 style="text-align: center;">Control de Vencidos</h2>
+        <div class="form-group">
+            <label for="login-user">Usuario:</label>
+            <input type="text" id="login-user" placeholder="Ingrese usuario">
+        </div>
+        <div class="form-group">
+            <label for="login-pass">Contraseña:</label>
+            <input type="password" id="login-pass" placeholder="Ingrese contraseña">
+        </div>
+        <button onclick="login()">Iniciar Sesión</button>
+        <p id="login-error" style="color: red; text-align: center; margin-top: 10px; font-size: 0.9em;"></p>
+    </div>
+
+    <div id="dashboard">
+        <header>
+            <div>
+                <h1 style="margin: 0; font-size: 24px;">Sistema de Control de Vencidos</h1>
+                <small>Usuario actual: <span id="current-user-display" style="font-weight: bold;"></span> (<span id="current-role-display"></span>)</small>
+            </div>
+            <button class="btn-secondary" onclick="logout()">Cerrar Sesión</button>
+        </header>
+
+        <div class="container">
+            <div class="grid">
+                
+                <div>
+                    <div class="card">
+                        <h2>Registrar Producto</h2>
+                        <form id="vencidos-form" onsubmit="guardarProducto(event)">
+                            <div class="form-group">
+                                <label for="prod-sucursal">Sucursal:</label>
+                                <input type="text" id="prod-sucursal" list="sucursales-list" required placeholder="Escriba para buscar sucursal (FA01 - FA118)...">
+                                <datalist id="sucursales-list"></datalist>
+                            </div>
+                            <div class="form-group">
+                                <label for="prod-name">Producto:</label>
+                                <div style="position:relative;" id="autocomplete-wrapper">
+                                    <input type="text" id="prod-name" required autocomplete="off"
+                                        placeholder="Escriba para buscar producto..."
+                                        oninput="acFiltrar()"
+                                        onkeydown="acNavegar(event)"
+                                        onfocus="acFiltrar()"
+                                        style="width:100%; box-sizing:border-box;">
+                                    <div id="ac-dropdown" style="
+                                        display:none; position:absolute; z-index:9999;
+                                        background:#fff; border:1px solid #b0c4de;
+                                        border-top:none; border-radius:0 0 6px 6px;
+                                        max-height:220px; overflow-y:auto;
+                                        width:100%; box-shadow:0 4px 12px rgba(0,0,0,0.12);
+                                        font-size:0.93em;">
+                                    </div>
+                                </div>
+                                <small id="total-products-msg" style="color: #666; font-style: italic; display:block; margin-top: 3px;"></small>
+                            </div>
+                            <div class="form-group">
+                                <label for="prod-lab">Laboratorio (Automático):</label>
+                                <input type="text" id="prod-lab" readonly placeholder="Se asigna automáticamente al elegir el producto" style="background-color: #e9ecef; font-weight: bold;">
+                            </div>
+                            <div class="form-group">
+                                <label for="prod-prov">Proveedor (Viñeta):</label>
+                                <select id="prod-prov" onchange="calcularDiagnosticoEnFormulario()">
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label for="prod-qty">Cantidad Vencida / Próxima a Vencer:</label>
+                                <input type="number" id="prod-qty" min="1" required placeholder="0">
+                            </div>
+                            <div class="form-group">
+                                <label for="prod-date">Fecha de Vencimiento:</label>
+                                <input type="date" id="prod-date" required>
+                            </div>
+                            <div class="form-group" id="form-diagnostico-container" style="display: none; margin-top: 10px;">
+                                <label>Diagnóstico por Viñeta:</label>
+                                <div id="form-diagnostico-badge" style="padding: 10px; border-radius: 4px; font-weight: bold; text-align: center;"></div>
+                            </div>
+                            <button type="submit" class="btn-success">Agregar al Reporte</button>
+                        </form>
+                    </div>
+
+                    <div id="admin-panel" class="card">
+                        <h2>Cargar Políticas de Vencidos (.xlsx)</h2>
+                        <div style="background-color: #fff8e1; padding: 12px; border-radius: 6px; margin-bottom: 20px; border: 1px dashed #ffb300;">
+                            <label style="font-size:0.85em; font-weight: bold; color:#b78103;">Subir archivo con columnas: <strong>Proveedor</strong>, <strong>Laboratorio</strong> y Observaciones</label>
+                            <input type="file" id="politicas-file-input" accept=".xlsx, .xls" style="padding:5px; font-size:0.9em; background: white; border: 1px solid #bdc3c7; width:100%; border-radius:4px; margin-top:5px;">
+                            <small id="politicas-status-msg" style="color: #e65100; font-weight: bold; display:block; margin-top: 5px;"></small>
+                        </div>
+
+                        <h2>Carga Masiva Proximos a V (.xlsx)</h2>
+                        <div style="background-color: #f0f9eb; padding: 12px; border-radius: 6px; margin-bottom: 20px; border: 1px dashed #67c23a;">
+                            <button type="button" class="btn-download-masivo" onclick="exportarFormatoCargaMasiva()">📥 Descargar Plantilla / Datos (.xlsx)</button>
+                            <input type="file" id="productos-masivo-file-input" accept=".xlsx, .xls" style="padding:5px; font-size:0.9em; background: white; border: 1px solid #bdc3c7; width:100%; border-radius:4px; margin-top:5px;">
+                            <small id="productos-masivo-status" style="color: #67c23a; font-weight: bold; display:block; margin-top: 5px;"></small>
+                        </div>
+
+                        <h2>Carga Masiva de Reporte Ventas (.xlsx)</h2>
+                        <div style="background-color: #eaf2f8; padding: 12px; border-radius: 6px; margin-bottom: 20px; border: 1px dashed #2980b9;">
+                            <input type="file" id="ventas-file-input" accept=".xlsx, .xls" style="padding:5px; font-size:0.9em; background: white; border: 1px solid #bdc3c7; width:100%; border-radius:4px;">
+                            <small id="ventas-status-msg" style="color: #27ae60; font-weight: bold; display:block; margin-top: 5px;"></small>
+                        </div>
+
+                        <h2>Copia de Seguridad (Backup)</h2>
+                        <div style="background-color: #f8f0fc; padding: 12px; border-radius: 6px; margin-bottom: 20px; border: 1px dashed #b8860b;">
+                            <button onclick="generarBackupSistema()" class="btn-backup">🔒 Generar Backup del Sistema (.json)</button>
+                            <hr style="border: 0; border-top: 1px solid #dee2e6; margin: 10px 0;">
+                            <label for="backup-file-input" style="font-size:0.85em; font-weight: bold; color: #7030a0;">Restaurar desde un Backup (.json):</label>
+                            <input type="file" id="backup-file-input" accept=".json" style="padding:5px; font-size:0.9em; background: white;">
+                        </div>
+
+                        <h2>Cargar Catálogo Oficial (.xlsx)</h2>
+                        <div style="background-color: #f1f3f5; padding: 12px; border-radius: 6px; margin-bottom: 20px; border: 1px dashed #ced4da;">
+                            <label style="font-size:0.85em; font-weight: bold; color:#555;">Subir Productos FA.xlsx con columnas Nombre y Laboratorio:</label>
+                            <input type="file" id="excel-file-input" accept=".xlsx, .xls" style="padding:5px; font-size:0.9em; margin-top:5px;">
+                        </div>
+
+                        <h2>Gestión de Usuarios</h2>
+                        <form id="user-form" onsubmit="crearUsuario(event)">
+                            <div class="form-group">
+                                <label for="new-username">Nuevo Usuario:</label>
+                                <input type="text" id="new-username" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="new-password">Contraseña:</label>
+                                <input type="password" id="new-password" required placeholder="Asigne una contraseña">
+                            </div>
+                            <div class="form-group">
+                                <label for="new-role">Rol Inicial:</label>
+                                <select id="new-role" required>
+                                    <option value="User">Usuario Normal</option>
+                                    <option value="Admin">Administrador</option>
+                                </select>
+                            </div>
+                            <button type="submit">Crear Usuario</button>
+                        </form>
+
+                        <h3 style="margin-top: 25px; font-size: 1.1em;">Usuarios Registrados y Permisos</h3>
+                        <div style="overflow-x: auto;">
+                            <table id="users-table">
+                                <thead>
+                                    <tr>
+                                        <th>Usuario</th>
+                                        <th style="text-align: center; width: 110px;">Permisos</th>
+                                        <th style="text-align: right;">Acciones de Cuenta</th>
+                                    </tr>
+                                </thead>
+                                <tbody></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <div>
+                    <div id="admin-export-section" style="display: none;">
+                        <button onclick="exportarAReporteExcelAvanzado()" class="btn-excel">📊 Exportar Plan Comercial con Filas Agrupadas (.xls)</button>
+                    </div>
+
+                    <div class="card">
+                        <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid var(--light-color); padding-bottom: 10px; margin-bottom: 15px; flex-wrap: wrap; gap: 10px;">
+                            <div>
+                                <h2 id="reporte-titulo" style="margin: 0; border: none; padding: 0;">Reporte de Vencidos</h2>
+                            </div>
+                            <div>
+                                <span class="badge badge-date">📅 Fecha de Hoy: <strong id="fecha-actual-header"></strong></span>
+                            </div>
+                        </div>
+
+                        <div id="admin-filters-container" style="display: none;">
+                            <div class="filter-box">
+                                <div class="form-group" style="margin-bottom: 0;">
+                                    <label for="filter-sucursal" style="font-size: 0.9em;">Sucursal:</label>
+                                    <select id="filter-sucursal" onchange="actualizarTablaReporte()">
+                                        <option value="">-- Todas --</option>
+                                    </select>
+                                </div>
+                                <div class="form-group" style="margin-bottom: 0;">
+                                    <label for="filter-mes-venc" style="font-size: 0.9em;">Mes Venc.:</label>
+                                    <select id="filter-mes-venc" onchange="actualizarTablaReporte()">
+                                        <option value="">-- Todos --</option>
+                                    </select>
+                                </div>
+                                <div class="form-group" style="margin-bottom: 0;">
+                                    <label for="filter-mes-registro" style="font-size: 0.9em;">Mes Reg.:</label>
+                                    <select id="filter-mes-registro" onchange="actualizarTablaReporte()">
+                                        <option value="">-- Todos --</option>
+                                    </select>
+                                </div>
+                                <div class="form-group" style="margin-bottom: 0;">
+                                    <label for="filter-recuperacion" style="font-size: 0.9em;">Política:</label>
+                                    <select id="filter-recuperacion" onchange="actualizarTablaReporte()">
+                                        <option value="">-- Todos --</option>
+                                        <option value="Recuperable">Recuperable</option>
+                                        <option value="Irrecuperable">Irrecuperable</option>
+                                    </select>
+                                </div>
+                                <div class="form-group" style="margin-bottom: 0;">
+                                    <label for="filter-estado-gestion" style="font-size: 0.9em;">Estado Gestión:</label>
+                                    <select id="filter-estado-gestion" onchange="actualizarTablaReporte()">
+                                        <option value="">-- Todos --</option>
+                                        <option value="Pendiente">Pendiente</option>
+                                        <option value="Trabajado">Trabajado</option>
+                                        <option value="Enviado">Enviado</option>
+                                        <option value="Impulsado">Impulsado</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+
+                        <p id="tip-modal-msg" style="color:#555; font-size:0.88em; margin-bottom:10px;"><strong style="color:var(--primary-color);">💡 Tip:</strong> Toca el nombre de cualquier producto para ver qué farmacias lo venden más.</p>
+
+                        <div style="overflow-x: auto;">
+                            <table id="reporte-table">
+                                <thead>
+                                    <tr>
+                                        <th>Sucursal</th>
+                                        <th>Producto</th>
+                                        <th>Laboratorio</th>
+                                        <th>Viñeta</th>
+                                        <th>Cant. Vencida</th>
+                                        <th>Estado Política</th>
+                                        <th>Venta Sucursal</th>
+                                        <th>Estado Gestión (Interactiva)</th>
+                                        <th>Mes Venc.</th>
+                                        <th>Año Venc.</th>
+                                        <th>Fecha Venc.</th>
+                                        <th>Registrado Por</th>
+                                        <th>Registrado El</th>
+                                        <th id="th-acciones-reporte" style="display: none;">Acciones</th>
+                                    </tr>
+                                </thead>
+                                <tbody></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let listadoProductos = [];
+        let mapaProductosLaboratorios = {}; 
+        let mapaTop10Ventas = {}; 
+        let maestroPoliticas = {}; // clave: 'proveedor||laboratorio' (lowercase) → { meses, observaciones }
+        let usuarioActual = null;
+        let globalVencidos = [];
+
+        // BASE DE DATOS ACTUALIZADA CON EL LISTADO COMPLETO DE PROVEEDORES / VIÑETAS COMERCIALES
+        const listaVinetasFijas = [
+            "AldoUnion", "Andifar", "Calox", "Chalver", "Corfarma", "DINSULA",
+            "Dromeinter", "DrogFrancesa", "DrogGuardado", "DrogHasther", "DrogRejuwe", "DrogUniversal",
+            "Drorisa", "ECSA", "GRIDENKA", "Higeafarma", "Infarma",
+            "Inpomo", "Inv&ProdVarios", "Karnel", "Lagomac", "Lancasco", "LeClinique",
+            "Leterago", "Medilab", "Medwell", "Mefasa", "MSN",
+            "NutriTech", "Pharmaetica", "Pisa", "Proconsumo", "Proconsumo VE",
+            "Siman", "Unipharm"
+        ];
+
+        function despliegueFechaActual() {
+            const hoy = new Date();
+            document.getElementById('fecha-actual-header').innerText = hoy.toLocaleDateString('es-HN', {
+                year: 'numeric', month: '2-digit', day: '2-digit'
+            });
+        }
+        despliegueFechaActual();
+
+        function generarListadoSucursales() {
+            const datalistSuc = document.getElementById('sucursales-list');
+            datalistSuc.innerHTML = '';
+            for (let i = 1; i <= 118; i++) {
+                let codigo = "FA" + i.toString().padStart(2, '0');
+                const option = document.createElement('option');
+                option.value = codigo;
+                datalistSuc.appendChild(option);
+            }
+        }
+        generarListadoSucursales();
+
+        function actualizarDatalistEnPantalla() {
+            document.getElementById('total-products-msg').innerText = listadoProductos.length > 0 ? `Catálogo actual: ${listadoProductos.length} productos listos.` : "Catálogo vacío. Cargue el archivo oficial en el panel de administración.";
+        }
+
+        function actualizarSelectProveedores(valorPreseleccionado = "Sin Politica") {
+            const selectProv = document.getElementById('prod-prov');
+            if (!selectProv) return;
+            
+            selectProv.innerHTML = '';
+            const opcionesCompletas = ["Sin Politica", ...listaVinetasFijas];
+
+            opcionesCompletas.forEach(vineta => {
+                const option = document.createElement('option');
+                option.value = vineta;
+                option.innerText = vineta;
+                selectProv.appendChild(option);
+            });
+
+            selectProv.value = valorPreseleccionado;
+            if (selectProv.selectedIndex === -1) {
+                selectProv.value = "Sin Politica";
+            }
+            calcularDiagnosticoEnFormulario();
+        }
+
+        function autoAsignarLaboratorioYProveedor(nombreProducto) {
+            const prod = (nombreProducto || document.getElementById('prod-name').value).trim();
+            let labAsignado = "Sin Politica";
+            if (mapaProductosLaboratorios[prod]) {
+                labAsignado = mapaProductosLaboratorios[prod];
+            }
+            document.getElementById('prod-lab').value = labAsignado;
+            if (listaVinetasFijas.includes(labAsignado)) {
+                actualizarSelectProveedores(labAsignado);
+            } else {
+                actualizarSelectProveedores("Sin Politica");
+            }
+            calcularDiagnosticoEnFormulario();
+        }
+
+        // ── Autocomplete personalizado ──────────────────────────────
+        let acIndice = -1;
+
+        function acFiltrar() {
+            const q = document.getElementById('prod-name').value.trim().toLowerCase();
+            const dd = document.getElementById('ac-dropdown');
+            acIndice = -1;
+
+            if (q.length === 0) {
+                dd.style.display = 'none';
+                return;
+            }
+
+            const startsWith = listadoProductos.filter(p => p.toLowerCase().startsWith(q));
+            const contains   = listadoProductos.filter(p => !p.toLowerCase().startsWith(q) && p.toLowerCase().includes(q));
+            const resultados = [...startsWith, ...contains].slice(0, 80);
+
+            if (resultados.length === 0) {
+                dd.style.display = 'none';
+                return;
+            }
+
+            dd.innerHTML = resultados.map((p, i) => {
+                const lower = p.toLowerCase();
+                const idx   = lower.indexOf(q);
+                const highlighted = idx >= 0
+                    ? p.slice(0, idx) + '<strong style="color:#0056b3;">' + p.slice(idx, idx + q.length) + '</strong>' + p.slice(idx + q.length)
+                    : p;
+                return '<div data-idx="' + i + '" data-value="' + p.replace(/"/g,'&quot;') + '" ' +
+                    'style="padding:7px 11px; cursor:pointer; border-bottom:1px solid #f0f0f0;" ' +
+                    'onmousedown="acSeleccionar(this)" ' +
+                    'onmouseover="acHover(this)">' + highlighted + '</div>';
+            }).join('');
+
+            dd.style.display = 'block';
+        }
+
+        function acHover(el) {
+            document.querySelectorAll('#ac-dropdown div').forEach(d => d.style.background = '');
+            el.style.background = '#eef4ff';
+            acIndice = parseInt(el.dataset.idx);
+        }
+
+        function acNavegar(e) {
+            const dd = document.getElementById('ac-dropdown');
+            const items = dd.querySelectorAll('div');
+            if (!items.length) return;
+
+            if (e.key === 'ArrowDown') {
+                e.preventDefault();
+                acIndice = Math.min(acIndice + 1, items.length - 1);
+            } else if (e.key === 'ArrowUp') {
+                e.preventDefault();
+                acIndice = Math.max(acIndice - 1, 0);
+            } else if (e.key === 'Enter' || e.key === 'Tab') {
+                if (acIndice >= 0 && items[acIndice]) {
+                    e.preventDefault();
+                    acSeleccionar(items[acIndice]);
+                }
+                return;
+            } else if (e.key === 'Escape') {
+                dd.style.display = 'none';
+                return;
+            } else { return; }
+
+            items.forEach(d => d.style.background = '');
+            if (items[acIndice]) {
+                items[acIndice].style.background = '#eef4ff';
+                items[acIndice].scrollIntoView({ block: 'nearest' });
+            }
+        }
+
+        function acSeleccionar(el) {
+            const valor = el.dataset.value;
+            document.getElementById('prod-name').value = valor;
+            document.getElementById('ac-dropdown').style.display = 'none';
+            autoAsignarLaboratorioYProveedor(valor);
+        }
+
+        document.addEventListener('click', function(e) {
+            if (!document.getElementById('autocomplete-wrapper').contains(e.target)) {
+                document.getElementById('ac-dropdown').style.display = 'none';
+            }
+        });
+        // ── Fin Autocomplete ────────────────────────────────────────
+
+        // Cargar archivo de Políticas Comerciales (.xlsx)
+        document.getElementById('politicas-file-input').addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(evt) {
+                try {
+                    const data = new Uint8Array(evt.target.result);
+                    const workbook = XLSX.read(data, { type: 'array' });
+                    const registros = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]);
+                    
+                    if (registros.length === 0) { alert("El archivo de políticas está vacío."); return; }
+
+                    let temporalesPoliticas = {};
+                    let contadorCargados = 0;
+
+                    registros.forEach(reg => {
+                        let prov = (reg['Proveedor'] || reg['Viñeta'] || reg['Vineta'] || "").toString().trim();
+                        let lab  = (reg['Laboratorio'] || reg['laboratorio'] || "").toString().trim();
+                        let obs  = (reg['Observaciones'] || reg['Observations'] || "").toString().trim();
+                        if (prov !== "" && lab !== "") {
+                            let numMatch = obs.match(/\d+/);
+                            let mesesLimite = numMatch ? parseInt(numMatch[0]) : 1;
+                            let clave = prov.toLowerCase() + "||" + lab.toLowerCase();
+                            if (!temporalesPoliticas[clave] || mesesLimite > temporalesPoliticas[clave].meses) {
+                                temporalesPoliticas[clave] = { meses: mesesLimite, observaciones: obs };
+                            }
+                            contadorCargados++;
+                        }
+                    });
+
+                    maestroPoliticas = temporalesPoliticas;
+                    localStorage.setItem('maestro_politicas_vencidos', JSON.stringify(maestroPoliticas));
+
+                    globalVencidos.forEach(item => {
+                        item.estadoRecuperacion = evaluarEstadoRecuperacion(item.proveedor, item.laboratorio);
+                    });
+                    localStorage.setItem('vencidos', JSON.stringify(globalVencidos));
+
+                    actualizarMensajeEstadoPoliticas();
+                    actualizarSelectProveedores(document.getElementById('prod-prov').value);
+                    actualizarTablaReporte();
+                    const numPares = Object.keys(temporalesPoliticas).length;
+                    alert(`¡Éxito! Se cargaron ${numPares} políticas (pares Viñeta + Laboratorio).`);
+                } catch (error) {
+                    alert("Error al procesar el archivo de políticas.");
+                }
+            };
+            reader.readAsArrayBuffer(file);
+        });
+
+        function actualizarMensajeEstadoPoliticas() {
+            const numLabs = Object.keys(maestroPoliticas).length;
+            const msgEl = document.getElementById('politicas-status-msg');
+            if (msgEl) {
+                msgEl.innerText = numLabs > 0 ? `✓ Políticas activas: ${numLabs} pares Viñeta+Laboratorio cargados.` : "Sin políticas cargadas — todos los estados se basan en lista fija.";
+            }
+        }
+
+        function evaluarEstadoRecuperacion(proveedor, laboratorio) {
+            if (!proveedor || proveedor === "" || proveedor === "Sin Politica") {
+                return "Irrecuperable";
+            }
+            if (Object.keys(maestroPoliticas).length > 0) {
+                if (!laboratorio || laboratorio === "" || laboratorio === "Sin Politica") {
+                    return "Irrecuperable";
+                }
+                let clave = proveedor.toLowerCase() + "||" + laboratorio.toLowerCase();
+                return maestroPoliticas[clave] ? "Recuperable" : "Irrecuperable";
+            }
+            return listaVinetasFijas.includes(proveedor) ? "Recuperable" : "Irrecuperable";
+        }
+
+        function obtenerPolitica(proveedor, laboratorio) {
+            if (!proveedor || !laboratorio || Object.keys(maestroPoliticas).length === 0) return null;
+            let clave = proveedor.toLowerCase() + "||" + laboratorio.toLowerCase();
+            return maestroPoliticas[clave] || null;
+        }
+
+        function calcularDiagnosticoEnFormulario() {
+            const proveedor = document.getElementById('prod-prov').value;
+            const laboratorio = (document.getElementById('prod-lab').value || "").trim();
+            const container = document.getElementById('form-diagnostico-container');
+            const badge = document.getElementById('form-diagnostico-badge');
+
+            if (proveedor && proveedor !== "") {
+                const res = evaluarEstadoRecuperacion(proveedor, laboratorio);
+                container.style.display = 'block';
+                const politica = obtenerPolitica(proveedor, laboratorio);
+                badge.innerHTML = res.toUpperCase() +
+                    (politica ? '<br><small style="font-weight:normal;font-size:0.82em;margin-top:4px;display:block;">' + politica.observaciones + '</small>' : '');
+                if (res === "Recuperable") {
+                    badge.style.backgroundColor = '#d4edda';
+                    badge.style.color = '#155724';
+                    badge.style.border = '1px solid #c3e6cb';
+                } else {
+                    badge.style.backgroundColor = '#f8d7da';
+                    badge.style.color = '#721c24';
+                    badge.style.border = '1px solid #f5c6cb';
+                }
+            } else {
+                container.style.display = 'none';
+            }
+        }
+
+        if (localStorage.getItem('maestro_politicas_vencidos')) {
+            maestroPoliticas = JSON.parse(localStorage.getItem('maestro_politicas_vencidos'));
+        }
+        actualizarMensajeEstadoPoliticas();
+
+        if (localStorage.getItem('mapa_top10_ventas')) {
+            mapaTop10Ventas = JSON.parse(localStorage.getItem('mapa_top10_ventas'));
+            actualizarMensajeEstadoVentas();
+        }
+
+        function actualizarMensajeEstadoVentas() {
+            const numProds = Object.keys(mapaTop10Ventas).length;
+            const msgEl = document.getElementById('ventas-status-msg');
+            if (msgEl) {
+                msgEl.innerText = numProds > 0 ? `✓ Base de datos analítica activa: ${numProds} productos mapeados.` : "Sin datos de venta masiva cargados.";
+            }
+        }
+
+        function filtrarLista(lista) {
+            const filtroSucursal = document.getElementById('filter-sucursal').value;
+            const filtroMesVenc = document.getElementById('filter-mes-venc').value;
+            const filtroMesRegistro = document.getElementById('filter-mes-registro').value;
+            const filtroRec = document.getElementById('filter-recuperacion').value;
+            const filtroGestion = document.getElementById('filter-estado-gestion').value;
+
+            if (filtroSucursal !== "") lista = lista.filter(item => item.sucursal && item.sucursal.toUpperCase() === filtroSucursal.toUpperCase());
+            if (filtroMesVenc !== "") lista = lista.filter(item => item.mes && item.mes === filtroMesVenc);
+            if (filtroMesRegistro !== "") lista = lista.filter(item => item.mesRegistro && item.mesRegistro === filtroMesRegistro);
+            if (filtroRec !== "") lista = lista.filter(item => item.estadoRecuperacion === filtroRec);
+            if (filtroGestion !== "") lista = lista.filter(item => (item.estadoGestion || "Pendiente") === filtroGestion);
+            
+            return lista;
+        }
+
+        function exportarFormatoCargaMasiva() {
+            let listaFiltrada = [...globalVencidos];
+            listaFiltrada = filtrarLista(listaFiltrada);
+
+            const datosMasivos = listaFiltrada.map(item => ({
+                'Sucursal': item.sucursal || '',
+                'Producto': item.producto || '',
+                'Laboratorio': item.laboratorio || '',
+                'Proveedor (Viñeta)': item.proveedor || '', 
+                'Cant. Vencida': parseInt(item.cantidad) || 0,
+                'Fecha de Vencimiento': item.fecha || '',
+                'Estado Gestión': item.estadoGestion || 'Pendiente',
+                'Registrado Por': item.usuario || 'Sistema',
+                'Registrado El': item.fechaRegistro || ''
+            }));
+
+            if (datosMasivos.length === 0) {
+                datosMasivos.push({
+                    'Sucursal': 'FA01',
+                    'Producto': 'Abrilar Jarabe, frasco 200ml',
+                    'Laboratorio': 'Megalabs',
+                    'Proveedor (Viñeta)': 'Leterago',
+                    'Cant. Vencida': 10,
+                    'Fecha de Vencimiento': '2026-12-31',
+                    'Estado Gestión': 'Pendiente',
+                    'Registrado Por': usuarioActual ? usuarioActual.usuario : 'Admin',
+                    'Registrado El': new Date().toLocaleDateString('es-HN', { year: 'numeric', month: '2-digit', day: '2-digit' })
+                });
+            }
+
+            const hojaTrabajo = XLSX.utils.json_to_sheet(datosMasivos);
+            const libroTrabajo = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(libroTrabajo, hojaTrabajo, "Productos Vencidos");
+            XLSX.writeFile(libroTrabajo, "Formato_Carga_Masiva_Productos.xlsx");
+        }
+
+        // CONTROL DE CARGA MASIVA INTEGRADO CON EL MAESTRO DE PROVEEDORES COMPLETO
+        document.getElementById('productos-masivo-file-input').addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(evt) {
+                try {
+                    const data = new Uint8Array(evt.target.result);
+                    const workbook = XLSX.read(data, { type: 'array', cellDates: true });
+                    const registros = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]);
+                    
+                    if (registros.length === 0) { alert("El archivo de Excel seleccionado está vacío."); return; }
+
+                    let nuevosRegistrosCargados = 0;
+                    registros.forEach((reg, index) => {
+                        let sucursal = reg['Sucursal'] ? reg['Sucursal'].toString().trim().toUpperCase() : "";
+                        let producto = reg['Producto'] ? reg['Producto'].toString().trim() : "";
+                        
+                        let laboratorio = reg['Laboratorio'] ? reg['Laboratorio'].toString().trim() : "";
+                        if (laboratorio === "" && mapaProductosLaboratorios[producto]) {
+                            laboratorio = mapaProductosLaboratorios[producto];
+                        } else if (laboratorio === "") {
+                            laboratorio = "Sin Politica";
+                        }
+
+                        let proveedor = "Sin Politica";
+                        if (reg['Proveedor (Viñeta)']) {
+                            proveedor = reg['Proveedor (Viñeta)'].toString().trim();
+                        } else if (reg['Viñeta']) {
+                            proveedor = reg['Viñeta'].toString().trim();
+                        } else if (reg['Proveedor']) {
+                            proveedor = reg['Proveedor'].toString().trim();
+                        } else {
+                            proveedor = laboratorio;
+                        }
+
+                        let coincidenciaLista = listaVinetasFijas.find(v => v.toLowerCase() === proveedor.toLowerCase());
+                        if (coincidenciaLista) {
+                            proveedor = coincidenciaLista; 
+                        } else {
+                            proveedor = "Sin Politica";
+                        }
+
+                        let cantidad = reg['Cant. Vencida'] ? parseInt(reg['Cant. Vencida']) : 0;
+                        let rawFechaVenc = reg['Fecha de Vencimiento'];
+                        let fechaVencTexto = (rawFechaVenc instanceof Date && !isNaN(rawFechaVenc)) ? rawFechaVenc.toISOString().split('T')[0] : (rawFechaVenc ? rawFechaVenc.toString().trim() : "");
+                        let registradoPor = reg['Registrado Por'] ? reg['Registrado Por'].toString().trim() : "Sistema";
+                        
+                        let rawFechaReg = reg['Registrado El'];
+                        let fechaRegTexto = (rawFechaReg instanceof Date && !isNaN(rawFechaReg)) ? rawFechaReg.toLocaleDateString('es-HN', { year: 'numeric', month: '2-digit', day: '2-digit' }) : (rawFechaReg ? rawFechaReg.toString().trim() : "");
+                        
+                        if (fechaRegTexto === "") {
+                            fechaRegTexto = new Date().toLocaleDateString('es-HN', { year: 'numeric', month: '2-digit', day: '2-digit' });
+                        }
+                        
+                        let estGestionExcel = reg['Estado Gestión'] ? reg['Estado Gestión'].toString().trim() : "Pendiente";
+
+                        if (sucursal !== "" && producto !== "" && fechaVencTexto !== "") {
+                            const dateParts = fechaVencTexto.split('-');
+                            let mesFormateado = "Indefinido", anioFormateado = "Indefinido";
+                            if (dateParts.length === 3) {
+                                const fObj = new Date(parseInt(dateParts[0]), parseInt(dateParts[1]) - 1, parseInt(dateParts[2]));
+                                const nMes = fObj.toLocaleString('es-HN', { month: 'long' });
+                                mesFormateado = nMes.charAt(0).toUpperCase() + nMes.slice(1);
+                                anioFormateado = fObj.getFullYear();
+                            }
+
+                            let mesRegistroTexto = "Indefinido", parsedRegDate = null;
+                            if (rawFechaReg instanceof Date) {
+                                parsedRegDate = rawFechaReg;
+                            } else if (fechaRegTexto.includes('/')) { 
+                                const p = fechaRegTexto.split('/'); parsedRegDate = new Date(parseInt(p[2]), parseInt(p[1]) - 1, parseInt(p[0])); 
+                            } else if (fechaRegTexto.includes('-')) { 
+                                const p = fechaRegTexto.split('-'); parsedRegDate = new Date(parseInt(p[0]), parseInt(p[1]) - 1, parseInt(p[2])); 
+                            }
+
+                            if (parsedRegDate && !isNaN(parsedRegDate)) {
+                                const nMesReg = parsedRegDate.toLocaleString('es-HN', { month: 'long' });
+                                mesRegistroTexto = nMesReg.charAt(0).toUpperCase() + nMesReg.slice(1);
+                            } else {
+                                const nMesReg = new Date().toLocaleString('es-HN', { month: 'long' });
+                                mesRegistroTexto = nMesReg.charAt(0).toUpperCase() + nMesReg.slice(1);
+                            }
+
+                            let estadoRecuperacion = evaluarEstadoRecuperacion(proveedor, laboratorio);
+
+                            globalVencidos.push({
+                                id: Date.now() + index, sucursal, producto, laboratorio, proveedor, vineta: proveedor, cantidad, fecha: fechaVencTexto,
+                                mes: mesFormateado, anio: anioFormateado, fechaRegistro: fechaRegTexto, mesRegistro: mesRegistroTexto, 
+                                usuario: registradoPor, estadoRecuperacion: estadoRecuperacion, estadoGestion: estGestionExcel
+                            });
+                            nuevosRegistrosCargados++;
+                        }
+                    });
+
+                    localStorage.setItem('vencidos', JSON.stringify(globalVencidos));
+                    actualizarSelectProveedores(document.getElementById('prod-prov').value);
+                    actualizarTablaReporte();
+                    document.getElementById('productos-masivo-status').innerText = `✓ ¡Éxito! Se inyectaron al reporte ${nuevosRegistrosCargados} filas trabajadas desde el Excel.`;
+                    alert(`¡Carga masiva finalizada con éxito!\nSe añadieron ${nuevosRegistrosCargados} registros analizados según su proveedor/viñeta.`);
+                    document.getElementById('productos-masivo-file-input').value = "";
+                } catch (error) {
+                    alert("Error crítico al analizar la estructura del Excel masivo.");
+                }
+            };
+            reader.readAsArrayBuffer(file);
+        });
+
+        function actualizarEstadoGestionInteractiva(id, nuevoEstado) {
+            const index = globalVencidos.findIndex(item => item.id == id);
+            if (index !== -1) {
+                globalVencidos[index].estadoGestion = nuevoEstado;
+                localStorage.setItem('vencidos', JSON.stringify(globalVencidos));
+            }
+        }
+
+        // Carga Masiva de Reporte Ventas (.xlsx)
+        document.getElementById('ventas-file-input').addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(evt) {
+                try {
+                    const data = new Uint8Array(evt.target.result);
+                    const workbook = XLSX.read(data, { type: 'array' });
+                    const registros = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]);
+                    
+                    if(registros.length === 0) { alert("El archivo está vacío."); return; }
+
+                    if (!('Sucursal' in registros[0]) || !('Producto' in registros[0]) || !('Cantidad' in registros[0])) {
+                        alert("Estructura inválida. Las columnas deben ser exactamente: 'Sucursal', 'Producto' y 'Cantidad'.");
+                        return;
+                    }
+
+                    let mapaTemporal = {};
+
+                    registros.forEach(reg => {
+                        let prod = reg.Producto;
+                        let suc = reg.Sucursal;
+                        let cant = parseInt(reg.Cantidad);
+
+                        if (prod && suc && !isNaN(cant)) {
+                            prod = prod.toString().trim();
+                            suc = suc.toString().trim().toUpperCase();
+
+                            if (!mapaTemporal[prod]) { mapaTemporal[prod] = {}; }
+                            if (!mapaTemporal[prod][suc]) { mapaTemporal[prod][suc] = 0; }
+                            mapaTemporal[prod][suc] += cant;
+                        }
+                    });
+
+                    let mapaFinal = {};
+                    for (let prod in mapaTemporal) {
+                        let sucursalesArreglo = [];
+                        for (let suc in mapaTemporal[prod]) {
+                            sucursalesArreglo.push({ sucursal: suc, quantity: mapaTemporal[prod][suc] });
+                        }
+                        sucursalesArreglo.sort((a, b) => b.quantity - a.quantity);
+                        mapaFinal[prod] = sucursalesArreglo;
+                    }
+
+                    mapaTop10Ventas = mapaFinal;
+                    localStorage.setItem('mapa_top10_ventas', JSON.stringify(mapaTop10Ventas));
+                    actualizarMensajeEstadoVentas();
+                    actualizarTablaReporte();
+                    alert("¡Éxito! El archivo masivo de ventas fue procesado y estructurado correctamente.");
+                } catch (error) {
+                    alert("Error al procesar el archivo de ventas.");
+                }
+            };
+            reader.readAsArrayBuffer(file);
+        });
+
+        // Cargar Catálogo Oficial (.xlsx)
+        document.getElementById('excel-file-input').addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(evt) {
+                try {
+                    const data = new Uint8Array(evt.target.result);
+                    const workbook = XLSX.read(data, { type: 'array' });
+                    const registros = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]);
+                    
+                    if (registros.length === 0) { alert("Archivo vacío."); return; }
+
+                    let productosExtraidos = [];
+                    let nuevoMapaLabs = {};
+
+                    registros.forEach(row => {
+                        let nombreProd = row['Nombre'] ? row['Nombre'].toString().trim() : "";
+                        let labProd = row['Laboratorio'] ? row['Laboratorio'].toString().trim() : "";
+                        
+                        if (nombreProd !== "" && nombreProd.toLowerCase() !== 'nombre') {
+                            productosExtraidos.push(nombreProd);
+                            if (labProd !== "") {
+                                nuevoMapaLabs[nombreProd] = labProd;
+                            }
+                        }
+                    });
+
+                    if(productosExtraidos.length > 0) {
+                        listadoProductos = productosExtraidos;
+                        mapaProductosLaboratorios = nuevoMapaLabs;
+                        
+                        localStorage.setItem('catalogo_excel_vencidos', JSON.stringify(listadoProductos));
+                        localStorage.setItem('mapa_productos_laboratorios', JSON.stringify(mapaProductosLaboratorios));
+                        
+                        actualizarDatalistEnPantalla();
+                        alert(`¡Éxito! Se cargó el catálogo con ${productosExtraidos.length} productos vinculados.`);
+                    } else {
+                        alert("No se encontraron registros válidos. Verifique que las columnas se llamen 'Nombre' y 'Laboratorio'.");
+                    }
+                } catch (error) {
+                    alert("Error al leer el archivo de catálogo.");
+                }
+            };
+            reader.readAsArrayBuffer(file);
+        });
+
+        // Restauración desde Copias de Seguridad (.json)
+        document.getElementById('backup-file-input').addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(evt) {
+                try {
+                    const datosRestaurados = JSON.parse(evt.target.result);
+                    if (datosRestaurados.vencidos && datosRestaurados.usuarios && datosRestaurados.catalogo) {
+                        if (confirm("¿Estás seguro de restaurar este backup?")) {
+                            localStorage.setItem('vencidos', JSON.stringify(datosRestaurados.vencidos));
+                            localStorage.setItem('usuarios', JSON.stringify(datosRestaurados.usuarios));
+                            localStorage.setItem('catalogo_excel_vencidos', JSON.stringify(datosRestaurados.catalogo));
+                            if (datosRestaurados.mapaTop10Ventas) {
+                                localStorage.setItem('mapa_top10_ventas', JSON.stringify(datosRestaurados.mapaTop10Ventas));
+                                mapaTop10Ventas = datosRestaurados.mapaTop10Ventas;
+                            }
+                            if (datosRestaurados.mapaProductosLaboratorios) {
+                                localStorage.setItem('mapa_productos_laboratorios', JSON.stringify(datosRestaurados.mapaProductosLaboratorios));
+                                mapaProductosLaboratorios = datosRestaurados.mapaProductosLaboratorios;
+                            }
+                            if (datosRestaurados.maestroPoliticas) {
+                                localStorage.setItem('maestro_politicas_vencidos', JSON.stringify(datosRestaurados.maestroPoliticas));
+                                maestroPoliticas = datosRestaurados.maestroPoliticas;
+                            }
+                            listadoProductos = datosRestaurados.catalogo;
+                            globalVencidos = datosRestaurados.vencidos;
+                            
+                            globalVencidos.forEach(item => {
+                                item.estadoRecuperacion = evaluarEstadoRecuperacion(item.proveedor, item.laboratorio);
+                            });
+
+                            actualizarTablaReporte();
+                            actualizarDatalistEnPantalla();
+                            actualizarSelectProveedores();
+                            actualizarTablaUsuarios();
+                            actualizarMensajeEstadoVentas();
+                            actualizarMensajeEstadoPoliticas();
+                            alert("¡Copia de seguridad restaurada con éxito total!");
+                        }
+                    }
+                } catch (err) {
+                    alert("Error al procesar el archivo.");
+                }
+            };
+            reader.readAsText(file);
+        });
+
+        if (localStorage.getItem('catalogo_excel_vencidos')) {
+            listadoProductos = JSON.parse(localStorage.getItem('catalogo_excel_vencidos'));
+        }
+        if (localStorage.getItem('mapa_productos_laboratorios')) {
+            mapaProductosLaboratorios = JSON.parse(localStorage.getItem('mapa_productos_laboratorios'));
+        }
+        actualizarDatalistEnPantalla();
+
+        if (!localStorage.getItem('usuarios')) {
+            localStorage.setItem('usuarios', JSON.stringify([
+                { usuario: 'admin', contrasena: 'admin123', rol: 'Admin' },
+                { usuario: 'empleado', contrasena: '123', rol: 'User' }
+            ]));
+        }
+        
+        globalVencidos = JSON.parse(localStorage.getItem('vencidos')) || [];
+        globalVencidos.forEach(item => {
+            item.estadoRecuperacion = evaluarEstadoRecuperacion(item.proveedor, item.laboratorio);
+        });
+
+        function login() {
+            const userIn = document.getElementById('login-user').value.trim();
+            const passIn = document.getElementById('login-pass').value;
+            const errorDiv = document.getElementById('login-error');
+            const cuenta = JSON.parse(localStorage.getItem('usuarios')).find(u => u.usuario.toLowerCase() === userIn.toLowerCase() && u.contrasena === passIn);
+
+            if (cuenta) {
+                usuarioActual = cuenta;
+                errorDiv.innerText = '';
+                document.getElementById('login-container').style.display = 'none';
+                document.getElementById('dashboard').style.display = 'block';
+                document.getElementById('current-user-display').innerText = cuenta.usuario;
+                document.getElementById('current-role-display').innerText = cuenta.rol;
+
+                if (cuenta.rol === 'Admin') {
+                    document.getElementById('admin-panel').style.display = 'block';
+                    document.getElementById('admin-export-section').style.display = 'block';
+                    document.getElementById('admin-filters-container').style.display = 'flex';
+                    document.getElementById('th-acciones-reporte').style.display = 'table-cell';
+                    document.getElementById('tip-modal-msg').style.display = 'block';
+                    actualizarTablaUsuarios();
+                } else {
+                    document.getElementById('admin-panel').style.display = 'none';
+                    document.getElementById('admin-export-section').style.display = 'none';
+                    document.getElementById('admin-filters-container').style.display = 'none';
+                    document.getElementById('th-acciones-reporte').style.display = 'none';
+                    document.getElementById('tip-modal-msg').style.display = 'none';
+                }
+                actualizarSelectProveedores();
+                actualizarTablaReporte();
+            } else {
+                errorDiv.innerText = 'Usuario o contraseña incorrectos.';
+            }
+        }
+
+        function logout() {
+            usuarioActual = null;
+            document.getElementById('dashboard').style.display = 'none';
+            document.getElementById('login-container').style.display = 'block';
+            document.getElementById('login-user').value = '';
+            document.getElementById('login-pass').value = '';
+        }
+
+        function guardarProducto(e) {
+            e.preventDefault();
+            const sucursal = document.getElementById('prod-sucursal').value.trim().toUpperCase();
+            const producto = document.getElementById('prod-name').value.trim();
+            const laboratorio = document.getElementById('prod-lab').value.trim() || "Sin Politica";
+            const proveedor = document.getElementById('prod-prov').value; 
+            const cantidad = document.getElementById('prod-qty').value;
+            const fecha = document.getElementById('prod-date').value;
+
+            const fechaObj = new Date(fecha + 'T00:00:00');
+            const nMes = fechaObj.toLocaleString('es-HN', { month: 'long' });
+            const mesFormateado = nMes.charAt(0).toUpperCase() + nMes.slice(1);
+            
+            const hoy = new Date();
+            const fechaRegistroTexto = hoy.toLocaleDateString('es-HN', { year: 'numeric', month: '2-digit', day: '2-digit' });
+            const nMesReg = hoy.toLocaleString('es-HN', { month: 'long' });
+
+            let estadoRecuperacion = evaluarEstadoRecuperacion(proveedor, laboratorio);
+
+            globalVencidos.push({
+                id: Date.now(), sucursal, producto, laboratorio, proveedor, vineta: proveedor, cantidad, fecha,
+                mes: mesFormateado, anio: fechaObj.getFullYear(), fechaRegistro: fechaRegistroTexto, 
+                mesRegistro: nMesReg.charAt(0).toUpperCase() + nMesReg.slice(1), usuario: usuarioActual.usuario,
+                estadoRecuperacion: estadoRecuperacion, estadoGestion: 'Pendiente'
+            });
+
+            localStorage.setItem('vencidos', JSON.stringify(globalVencidos));
+            actualizarSelectProveedores();
+            actualizarTablaReporte();
+            document.getElementById('vencidos-form').reset();
+            document.getElementById('form-diagnostico-container').style.display = 'none';
+        }
+
+        function poblarSelectoresFiltros() {
+            const selectSucursal = document.getElementById('filter-sucursal');
+            const selectMesVenc = document.getElementById('filter-mes-venc');
+            const selectMesReg = document.getElementById('filter-mes-registro');
+            
+            if (!selectSucursal || !selectMesVenc || !selectMesReg) return;
+            
+            const valorSucPrevio = selectSucursal.value;
+            const valorMesVencPrevio = selectMesVenc.value;
+            const valorMesRegPrevio = selectMesReg.value;
+            
+            selectSucursal.innerHTML = '<option value="">-- Todas --</option>';
+            selectMesVenc.innerHTML = '<option value="">-- Todos --</option>';
+            selectMesReg.innerHTML = '<option value="">-- Todos --</option>';
+            
+            let sucursalesUnicas = new Set(), mesesVencUnicos = new Set(), mesesRegUnicos = new Set();
+            
+            globalVencidos.forEach(item => {
+                if (item.sucursal) sucursalesUnicas.add(item.sucursal.toUpperCase());
+                if (item.mes) mesesVencUnicos.add(item.mes);
+                if (item.mesRegistro) mesesRegUnicos.add(item.mesRegistro);
+            });
+            
+            Array.from(sucursalesUnicas).sort().forEach(suc => {
+                const opt = document.createElement('option'); opt.value = suc; opt.innerText = suc; selectSucursal.appendChild(opt);
+            });
+            Array.from(mesesVencUnicos).sort().forEach(mes => {
+                const opt = document.createElement('option'); opt.value = mes; opt.innerText = mes; selectMesVenc.appendChild(opt);
+            });
+            Array.from(mesesRegUnicos).sort().forEach(mes => {
+                const opt = document.createElement('option'); opt.value = mes; opt.innerText = mes; selectMesReg.appendChild(opt);
+            });
+            
+            selectSucursal.value = valorSucPrevio;
+            selectMesVenc.value = valorMesVencPrevio;
+            selectMesReg.value = valorMesRegPrevio;
+        }
+
+        function actualizarTablaReporte() {
+            let listaVisualizacion = [...globalVencidos];
+            if (usuarioActual) {
+                if (usuarioActual.rol === 'Admin') {
+                    listaVisualizacion = filtrarLista(listaVisualizacion);
+                } else {
+                    listaVisualizacion = listaVisualizacion.filter(item => item.usuario && item.usuario.toLowerCase() === usuarioActual.usuario.toLowerCase());
+                }
+            }
+
+            poblarSelectoresFiltros();
+            const tbody = document.querySelector('#reporte-table tbody');
+            tbody.innerHTML = '';
+            listaVisualizacion.sort((a, b) => new Date(a.fecha) - new Date(b.fecha));
+
+            listaVisualizacion.forEach(item => {
+                const tr = document.createElement('tr');
+                let celdaAcciones = usuarioActual && usuarioActual.rol === 'Admin' ? `<td><button class="btn-delete-item" onclick='eliminarRegistroVencido(${item.id})'>Eliminar</button></td>` : '';
+                const productoEscapado = item.producto.replace(/'/g, "\\'").replace(/"/g, '&quot;');
+                let productoHTML = usuarioActual && usuarioActual.rol === 'Admin' ? `<strong class="clickable-product" onclick="verTop10Ventas('${productoEscapado}')">${item.producto}</strong>` : `<strong>${item.producto}</strong>`;
+
+                let ventaHistoricaSucursal = 0;
+                if (mapaTop10Ventas[item.producto]) {
+                    let recordSuc = mapaTop10Ventas[item.producto].find(f => f.sucursal.toUpperCase() === item.sucursal.toUpperCase());
+                    if (recordSuc) ventaHistoricaSucursal = recordSuc.quantity;
+                }
+
+                let laboratorioDisplay = item.laboratorio || "Sin Politica";
+                let proveedorDisplay = item.proveedor || "Sin Politica";
+                
+                let estRec = evaluarEstadoRecuperacion(proveedorDisplay, laboratorioDisplay);
+                let politicaInfo = obtenerPolitica(proveedorDisplay, laboratorioDisplay);
+                let tooltipPolitica = politicaInfo ? ' title="' + politicaInfo.observaciones.replace(/"/g,'&quot;') + '"' : '';
+                let badgeEstadoClase = estRec === "Recuperable" ? "badge-recuperable" : "badge-irrecuperable";
+
+                let actualGestion = item.estadoGestion || "Pendiente";
+                let colorFondoSelect = "#fff3cd"; 
+                if (actualGestion === "Trabajado") colorFondoSelect = "#d4edda";
+                if (actualGestion === "Enviado") colorFondoSelect = "#cce5ff";
+                if (actualGestion === "Impulsado") colorFondoSelect = "#e2d0f8";
+
+                let selectorGestionHTML = `
+                    <select class="select-interactivo" style="background-color: ${colorFondoSelect};" onchange="actualizarEstadoGestionInteractiva(${item.id}, this.value); actualizarTablaReporte();">
+                        <option value="Pendiente" ${actualGestion === 'Pendiente' ? 'selected' : ''}>⏳ Pendiente</option>
+                        <option value="Trabajado" ${actualGestion === 'Trabajado' ? 'selected' : ''}>✅ Trabajado</option>
+                        <option value="Enviado" ${actualGestion === 'Enviado' ? 'selected' : ''}>✈️ Enviado</option>
+                        <option value="Impulsado" ${actualGestion === 'Impulsado' ? 'selected' : ''}>🚀 Impulsado</option>
+                    </select>
+                `;
+
+                tr.innerHTML = `
+                    <td><span class="badge badge-sucursal">${item.sucursal}</span></td>
+                    <td>${productoHTML}</td>
+                    <td><span class="badge" style="background-color: #eaf2f8; color: #2980b9; border: 1px solid #a9cce3; font-weight:bold;">${laboratorioDisplay}</span></td>
+                    <td><span class="badge" style="background-color: #f1f3f5; color: #495057; border: 1px solid #ced4da; font-weight:bold;">${proveedorDisplay}</span></td>
+                    <td style="font-weight: bold; text-align: center;">${parseInt(item.cantidad).toLocaleString('es-HN')}</td>
+                    <td><span class="badge ${badgeEstadoClase}" ${tooltipPolitica} style="cursor:${politicaInfo?'help':'default'};">${estRec.toUpperCase()}${politicaInfo ? ' ℹ️' : ''}</span></td>
+                    <td><span class="badge badge-venta">${ventaHistoricaSucursal.toLocaleString('es-HN')}</span></td>
+                    <td style="text-align: center;">${selectorGestionHTML}</td>
+                    <td><span class="badge" style="background-color: #f1f3f5; color: #495057;">${item.mes}</span></td>
+                    <td><span class="badge" style="background-color: #eef2f7; color: #0056b3;">${item.anio}</span></td>
+                    <td><span style="color: #dc3545; font-weight: bold;">${item.fecha}</span></td>
+                    <td><span class="badge" style="background-color: #f8f9fa; color: #6c757d; border: 1px solid #dee2e6;">👤 ${item.usuario}</span></td>
+                    <td><span class="badge" style="background-color: #e8f5e9; color: #1b5e20; border: 1px solid #c8e6c9;">📅 ${item.fechaRegistro}</span></td>
+                    ${celdaAcciones}
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        function verTop10Ventas(nombreProducto) {
+            if (usuarioActual && usuarioActual.rol !== 'Admin') return;
+            document.getElementById('modal-producto-titulo').innerText = nombreProducto;
+            const subText = document.getElementById('modal-producto-sub');
+            const tbody = document.querySelector('#modal-top10-table tbody');
+            tbody.innerHTML = '';
+
+            if (mapaTop10Ventas[nombreProducto] && mapaTop10Ventas[nombreProducto].length > 0) {
+                subText.innerText = "Sucursales ordenadas por rotación comercial.";
+                mapaTop10Ventas[nombreProducto].slice(0, 10).forEach((item, idx) => {
+                    const tr = document.createElement('tr');
+                    tr.innerHTML = `<td style="text-align: center; font-weight: bold;">#${idx + 1}</td><td><span class="badge badge-sucursal">${item.sucursal}</span></td><td style="text-align: right; font-weight: bold;">${item.quantity.toLocaleString('es-HN')}</td>`;
+                    tbody.appendChild(tr);
+                });
+            } else {
+                subText.innerText = "⚠️ No hay historial de venta masiva cargado.";
+                tbody.innerHTML = `<tr><td colspan="3" style="text-align:center; color:#999; font-style:italic; padding:20px;">Suba el archivo Ventas en el panel Admin.</td></tr>`;
+            }
+            document.getElementById('top10-modal').style.display = 'block';
+        }
+
+        function cerrarModal() { document.getElementById('top10-modal').style.display = 'none'; }
+
+        function eliminarRegistroVencido(id) {
+            if (usuarioActual && usuarioActual.rol !== 'Admin') return;
+            if (confirm("¿Eliminar este producto?")) {
+                globalVencidos = globalVencidos.filter(item => item.id !== id);
+                localStorage.setItem('vencidos', JSON.stringify(globalVencidos));
+                actualizarTablaReporte();
+            }
+        }
+
+        function exportarAReporteExcelAvanzado() {
+            if (usuarioActual && usuarioActual.rol !== 'Admin') return;
+            let listaVencidos = [...globalVencidos];
+            listaVencidos = filtrarLista(listaVencidos);
+
+            if (listaVencidos.length === 0) { alert("No hay registros para exportar."); return; }
+
+            let xmlFile = `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40"><head><meta charset="UTF-8"><style>table { border-collapse: collapse; font-family: 'Segoe UI', sans-serif; } th { background-color: #0056b3; color: #ffffff; font-weight: bold; text-align: center; border: 1px solid #dee2e6; height: 30px; } td { border: 1px solid #dee2e6; height: 22px; vertical-align: middle; } .fila-padre { background-color: #f2f4f7; font-weight: bold; } .top3 { background-color: #e2f0d9; italic: true; } .center { text-align: center; } .right { text-align: right; } </style></head><body><table><thead><tr><th>Sucursal Origen</th><th style="width:320px;">Producto / Medicamento</th><th>Laboratorio</th><th>Viñeta</th><th>Cant. Vencida</th><th>Estado Política</th><th>Venta Histórica Origen</th><th>Estado Gestión</th><th>Mes Venc.</th><th>Año Venc.</th><th>Fecha Vencimiento</th><th>Registrado El</th><th style="width:300px;">Info Comercial / Destino Recomendado</th><th>Venta Histórica Destino</th></tr></thead><tbody>`;
+
+            listaVencidos.forEach(item => {
+                let labExp = item.laboratorio || "Sin Politica";
+                let provExp = item.proveedor || "Sin Politica";
+                let estRec = evaluarEstadoRecuperacion(provExp, labExp);
+                let estGestionTxt = item.estadoGestion || "Pendiente";
+
+                let ventaHistoricaSucursal = 0;
+                if (mapaTop10Ventas[item.producto]) {
+                    let recordSuc = mapaTop10Ventas[item.producto].find(f => f.sucursal.toUpperCase() === item.sucursal.toUpperCase());
+                    if (recordSuc) ventaHistoricaSucursal = recordSuc.quantity;
+                }
+
+                xmlFile += `<tr class="fila-padre"><td class="center">${item.sucursal}</td><td>${item.producto}</td><td>${labExp}</td><td>${provExp}</td><td class="center">${parseInt(item.cantidad)}</td><td class="center">${estRec.toUpperCase()}</td><td class="center">${ventaHistoricaSucursal}</td><td class="center">${estGestionTxt}</td><td class="center">${item.mes}</td><td class="center">${item.anio}</td><td class="center">${item.fecha}</td><td class="center">${item.fechaRegistro}</td><td></td><td></td></tr>`;
+                let sucursalesTop = mapaTop10Ventas[item.producto] ? mapaTop10Ventas[item.producto].slice(0, 10) : [];
+                if (sucursalesTop.length > 0) {
+                    sucursalesTop.forEach((farmacia, idx) => {
+                        let esTop3Clase = idx < 3 ? 'top3' : '';
+                        xmlFile += `<tr style="mso-outline-level:1; display:none;"><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td class="${esTop3Clase}" style="color:#555; padding-left: 15px;">🏆 Top #${idx+1} Vendedora: Sucursal <strong>${farmacia.sucursal}</strong></td><td class="${esTop3Clase} right" style="color:#333;">${parseInt(farmacia.quantity)}</td></tr>`;
+                    });
+                } else {
+                    xmlFile += `<tr style="mso-outline-level:1; display:none;"><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td style="color:#999; font-style:italic; padding-left: 15px;">No hay historial de ventas masivas cargado.</td><td></td></tr>`;
+                }
+            });
+
+            xmlFile += `</tbody></table></body></html>`;
+            const blob = new Blob([xmlFile], { type: "application/vnd.ms-excel;charset=utf-8" });
+            const link = document.createElement("a");
+            link.href = URL.createObjectURL(blob); link.download = "Plan_Rotacion_Comercial_Agrupado.xls";
+            document.body.appendChild(link); link.click(); document.body.removeChild(link);
+        }
+
+        function generarBackupSistema() {
+            if (usuarioActual && usuarioActual.rol !== 'Admin') return;
+            const estructura = { vencidos: globalVencidos, usuarios: JSON.parse(localStorage.getItem('usuarios')), catalogo: listadoProductos, mapaTop10Ventas, mapaProductosLaboratorios, maestroPoliticas };
+            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(estructura, null, 2));
+            const a = document.createElement('a'); a.setAttribute("href", dataStr); a.setAttribute("download", `Backup_Sistema_Vencidos.json`); a.click();
+        }
+
+        function crearUsuario(e) {
+            e.preventDefault();
+            const nuevoUser = document.getElementById('new-username').value.trim();
+            const nuevaPass = document.getElementById('new-password').value;
+            const nuevoRol = document.getElementById('new-role').value;
+            const usuarios = JSON.parse(localStorage.getItem('usuarios'));
+
+            if (usuarios.some(u => u.usuario.toLowerCase() === nuevoUser.toLowerCase())) { return alert('El nombre de usuario ya existe.'); }
+            usuarios.push({ usuario: nuevoUser, contrasena: nuevaPass, rol: nuevoRol });
+            localStorage.setItem('usuarios', JSON.stringify(usuarios));
+            actualizarTablaUsuarios();
+            document.getElementById('user-form').reset();
+        }
+
+        function actualizarTablaUsuarios() {
+            const usuarios = JSON.parse(localStorage.getItem('usuarios')) || [];
+            const tbody = document.querySelector('#users-table tbody');
+            tbody.innerHTML = '';
+            
+            usuarios.forEach((u, index) => {
+                const tr = document.createElement('tr');
+                let claseBotonRol = u.rol === 'Admin' ? 'btn-role-admin' : 'btn-role-user';
+                tr.innerHTML = `<td><strong>${u.usuario}</strong></td><td style="text-align: center;"><button class="btn-role-toggle ${claseBotonRol}" onclick="toggleAdminRole(${index})">${u.rol}</button></td><td style="text-align: right;"><button class="btn-action btn-password" onclick="cambiarClaveUsuario(${index})">🔑 Clave</button></td>`;
+                tbody.appendChild(tr);
+            });
+        }
+
+        function toggleAdminRole(index) {
+            const usuarios = JSON.parse(localStorage.getItem('usuarios'));
+            if (usuarioActual && usuarioActual.usuario.toLowerCase() === usuarios[index].usuario.toLowerCase()) {
+                alert("⚠️ No puedes revocar tus propios permisos de Administrador estando en sesión."); return;
+            }
+            usuarios[index].rol = (usuarios[index].rol === 'Admin') ? 'User' : 'Admin';
+            localStorage.setItem('usuarios', JSON.stringify(usuarios));
+            actualizarTablaUsuarios();
+            actualizarTablaReporte();
+        }
+
+        function cambiarClaveUsuario(index) {
+            const usuarios = JSON.parse(localStorage.getItem('usuarios'));
+            const p = prompt(`Ingrese la nueva contraseña para "${usuarios[index].usuario}":`);
+            if (p && p.trim() !== "") {
+                usuarios[index].contrasena = p.trim();
+                localStorage.setItem('usuarios', JSON.stringify(usuarios));
+                alert("Contraseña actualizada con éxito.");
+            }
+        }
+    </script>
+</body>
+</html>
