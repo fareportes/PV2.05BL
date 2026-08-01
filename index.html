@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Carga Masiva Proximos a V - Sistema de Gestión</title>
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <style>
         :root {
             --primary-color: #0056b3;
@@ -129,6 +130,8 @@
         .btn-role-admin:hover { background-color: #d0e8fd; }
         .btn-role-user { background-color: #e8f5e9; color: #1b5e20; border-color: #c8e6c9; }
         .btn-role-user:hover { background-color: #dcedd5; }
+        .btn-role-super { background-color: #fdecea; color: #7d1a13; border-color: #f5c6c0; }
+        .btn-role-super:hover { background-color: #fbdcd8; }
 
         .btn-password { background-color: #ffc107; color: #212529; }
         .btn-password:hover { background-color: #e0a800; }
@@ -191,6 +194,59 @@
         .clickable-product:hover {
             color: #003d82;
             background-color: #f0f4f8;
+        }
+
+        /* ---- Dashboard: Riesgo de Vencimiento con Venta en Otras FA ---- */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 12px;
+        }
+        @media (max-width: 700px) {
+            .stats-grid { grid-template-columns: 1fr; }
+        }
+        .stat-box {
+            background-color: #f8f9fa;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 15px;
+            text-align: center;
+            cursor: pointer;
+            transition: transform 0.15s, box-shadow 0.15s;
+        }
+        .stat-box:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 10px rgba(0,0,0,0.08);
+        }
+        .stat-box.active {
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 2px rgba(0,86,179,0.25);
+        }
+        .stat-num {
+            display: block;
+            font-size: 1.9em;
+            font-weight: bold;
+            line-height: 1.2;
+        }
+        .stat-label {
+            font-size: 0.85em;
+            color: #666;
+        }
+        .stat-total .stat-num { color: var(--primary-color); }
+        .stat-pendiente .stat-num { color: #e65100; }
+        .stat-trabajado .stat-num { color: var(--secondary-color); }
+
+        .dash-progreso-track {
+            background-color: #eef2f7;
+            border-radius: 10px;
+            height: 10px;
+            overflow: hidden;
+        }
+        .dash-progreso-fill {
+            background-color: var(--secondary-color);
+            height: 100%;
+            width: 0%;
+            transition: width 0.3s;
         }
 
         .modal {
@@ -280,10 +336,72 @@
                 <h1 style="margin: 0; font-size: 24px;">Sistema de Control de Vencidos</h1>
                 <small>Usuario actual: <span id="current-user-display" style="font-weight: bold;"></span> (<span id="current-role-display"></span>)</small>
             </div>
-            <button class="btn-secondary" onclick="logout()">Cerrar Sesión</button>
+            <div>
+                <button class="btn-secondary" onclick="sincronizarManual()" title="Reemplaza la vista actual con lo que hay guardado en Google Sheets">🔄 Sincronizar</button>
+                <button class="btn-secondary" onclick="logout()">Cerrar Sesión</button>
+            </div>
         </header>
 
         <div class="container">
+
+            <div class="card" id="dashboard-riesgo-card">
+                <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px; margin-bottom: 5px;">
+                    <h2 style="margin:0; border:none; padding:0;">📊 Riesgo de Vencimiento con Venta en Otras FA <span id="dash-fa-activa-badge" style="display:none; font-size:0.6em; background-color:#eef2f7; color:var(--primary-color); padding:3px 8px; border-radius:10px; vertical-align:middle;"></span></h2>
+                    <label style="font-size:0.85em; display:flex; align-items:center; gap:6px; cursor:pointer; font-weight: normal;">
+                        <input type="checkbox" id="dash-toggle-filtro" onchange="toggleFiltroRiesgoOtraFA()">
+                        Mostrar solo estos en la tabla
+                    </label>
+                </div>
+                <p style="color:#666; font-size:0.85em; margin: 0 0 15px 0;">
+                    Productos próximos a vencer que <strong>no tienen venta en su propia FA</strong> pero <strong>sí se venden en otras farmacias</strong>: son candidatos a traslado/redistribución antes de perderse.
+                </p>
+                <div class="stats-grid">
+                    <div class="stat-box stat-total" onclick="filtrarDashboardRiesgo('total')" title="Ver todos los que están en riesgo con venta en otra FA">
+                        <span class="stat-num" id="dash-total-riesgo">0</span>
+                        <span class="stat-label">Total en Riesgo</span>
+                    </div>
+                    <div class="stat-box stat-pendiente" onclick="filtrarDashboardRiesgo('pendiente')" title="Ver solo los pendientes de gestionar">
+                        <span class="stat-num" id="dash-pendientes">0</span>
+                        <span class="stat-label">⏳ Pendientes</span>
+                    </div>
+                    <div class="stat-box stat-trabajado" onclick="filtrarDashboardRiesgo('trabajado')" title="Ver los que ya fueron trabajados, enviados o impulsados">
+                        <span class="stat-num" id="dash-trabajados">0</span>
+                        <span class="stat-label">✅ Trabajados</span>
+                    </div>
+                </div>
+                <div style="margin-top:15px;">
+                    <div style="display:flex; justify-content:space-between; font-size:0.8em; color:#666; margin-bottom:4px;">
+                        <span>Avance de gestión</span>
+                        <span id="dash-progreso-pct">0%</span>
+                    </div>
+                    <div class="dash-progreso-track">
+                        <div id="dash-progreso-bar" class="dash-progreso-fill"></div>
+                    </div>
+                    <small id="dash-breakdown" style="color:#666; display:block; margin-top:6px;"></small>
+                </div>
+            </div>
+
+            <div class="card" id="dashboard-resumen-fa-card" style="display:none;">
+                <h2 style="margin:0 0 5px 0;">🏢 Resumen por FA (todas las sucursales)</h2>
+                <p style="color:#666; font-size:0.85em; margin: 0 0 15px 0;">
+                    Desglose de productos en riesgo con venta en otras FA, por sucursal de origen. Respeta los filtros de Mes Venc., Mes Reg., Política y Estado Gestión (no el de Sucursal, para poder comparar todas). Clic en una fila para filtrar esa FA en el reporte.
+                </p>
+                <div style="overflow-x:auto;">
+                    <table id="tabla-resumen-fa" style="width:100%; border-collapse: collapse;">
+                        <thead>
+                            <tr style="border-bottom: 2px solid var(--border-color); text-align:left;">
+                                <th style="padding:8px;">FA</th>
+                                <th style="padding:8px; text-align:right;">Total en Riesgo</th>
+                                <th style="padding:8px; text-align:right;">⏳ Pendientes</th>
+                                <th style="padding:8px; text-align:right;">✅ Trabajados</th>
+                                <th style="padding:8px;">Avance</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tabla-resumen-fa-body"></tbody>
+                    </table>
+                </div>
+            </div>
+
             <div class="grid">
                 
                 <div>
@@ -387,10 +505,16 @@
                             </div>
                             <div class="form-group">
                                 <label for="new-role">Rol Inicial:</label>
-                                <select id="new-role" required>
+                                <select id="new-role" required onchange="actualizarVisibilidadFANuevoUsuario()">
                                     <option value="User">Usuario Normal</option>
                                     <option value="Admin">Administrador</option>
+                                    <option value="SuperAdmin">Super Usuario</option>
                                 </select>
+                            </div>
+                            <div class="form-group" id="new-fa-group">
+                                <label for="new-fa">FA Asignada:</label>
+                                <input type="text" id="new-fa" list="sucursales-list" placeholder="Ej: FA01">
+                                <small style="color:#6c757d;">El usuario solo podrá ver y registrar en esta FA.</small>
                             </div>
                             <button type="submit">Crear Usuario</button>
                         </form>
@@ -402,6 +526,7 @@
                                     <tr>
                                         <th>Usuario</th>
                                         <th style="text-align: center; width: 110px;">Permisos</th>
+                                        <th style="text-align: center; width: 90px;">FA</th>
                                         <th style="text-align: right;">Acciones de Cuenta</th>
                                     </tr>
                                 </thead>
@@ -420,10 +545,18 @@
                         <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid var(--light-color); padding-bottom: 10px; margin-bottom: 15px; flex-wrap: wrap; gap: 10px;">
                             <div>
                                 <h2 id="reporte-titulo" style="margin: 0; border: none; padding: 0;">Reporte de Vencidos</h2>
+                                <span id="dash-filtro-activo-badge" style="display:none; font-size:0.8em; color: var(--primary-color); cursor:pointer;" onclick="quitarFiltroDashboardRiesgo()">
+                                    🔎 Filtro de riesgo activo — <span style="text-decoration:underline;">quitar</span>
+                                </span>
                             </div>
                             <div>
                                 <span class="badge badge-date">📅 Fecha de Hoy: <strong id="fecha-actual-header"></strong></span>
                             </div>
+                        </div>
+
+                        <div class="form-group" style="margin-bottom: 15px;">
+                            <label for="buscador-producto" style="font-size: 0.9em;">🔍 Buscar producto:</label>
+                            <input type="text" id="buscador-producto" oninput="actualizarTablaReporte()" placeholder="Escriba el nombre del producto para filtrar los registros..." style="width:100%; box-sizing:border-box;">
                         </div>
 
                         <div id="admin-filters-container" style="display: none;">
@@ -500,14 +633,88 @@
     </div>
 
     <script>
+        // URL ACTUALIZADA
+        const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbwHjpoTVM4nfzM4PNNJk8pGID4a72ND1IXztWc5vt4L1mw31agK5M9VKLDORdPK8sP9/exec";
+
         let listadoProductos = [];
         let mapaProductosLaboratorios = {}; 
         let mapaTop10Ventas = {}; 
-        let maestroPoliticas = {}; // clave: 'proveedor||laboratorio' (lowercase) → { meses, observaciones }
+        let maestroPoliticas = {}; 
         let usuarioActual = null;
         let globalVencidos = [];
 
-        // BASE DE DATOS ACTUALIZADA CON EL LISTADO COMPLETO DE PROVEEDORES / VIÑETAS COMERCIALES
+        // Estado del filtro del Dashboard de Riesgo (venta en otras FA)
+        let filtroSoloRiesgoOtraFA = false;
+        let filtroGestionAgrupadoRiesgo = ''; // '' | 'pendiente' | 'trabajado'
+
+        // ── MÓDULO DE INDEXEDDB PARA CACHÉ MASIVA DE VENTAS (+240k registros) ──
+        const DB_NAME = "ControlVencidosDB";
+        const STORE_NAME = "ventasCache";
+        const DB_VERSION = 1;
+
+        function abrirDB() {
+            return new Promise((resolve, reject) => {
+                const request = indexedDB.open(DB_NAME, DB_VERSION);
+                request.onupgradeneeded = function(event) {
+                    const db = event.target.result;
+                    if (!db.objectStoreNames.contains(STORE_NAME)) {
+                        db.createObjectStore(STORE_NAME);
+                    }
+                };
+                request.onsuccess = (event) => resolve(event.target.result);
+                request.onerror = (event) => reject(event.target.error);
+            });
+        }
+
+        async function guardarEnCacheVentas(dataRegistros) {
+            const db = await abrirDB();
+            return new Promise((resolve, reject) => {
+                const transaction = db.transaction(STORE_NAME, "readwrite");
+                const store = transaction.objectStore(STORE_NAME);
+                const request = store.put(dataRegistros, "datosVentas");
+                request.onsuccess = () => resolve(true);
+                request.onerror = (e) => reject(e.target.error);
+            });
+        }
+
+        async function obtenerDeCacheVentas() {
+            try {
+                const db = await abrirDB();
+                return new Promise((resolve, reject) => {
+                    const transaction = db.transaction(STORE_NAME, "readonly");
+                    const store = transaction.objectStore(STORE_NAME);
+                    const request = store.get("datosVentas");
+                    request.onsuccess = (e) => resolve(e.target.result || null);
+                    request.onerror = (e) => reject(e.target.error);
+                });
+            } catch (error) {
+                console.error("Error al leer IndexedDB:", error);
+                return null;
+            }
+        }
+        // ──────────────────────────────────────────────────────────────────────
+
+        function esAdminOSuperior(u) {
+            return !!(u && (u.rol === 'Admin' || u.rol === 'SuperAdmin'));
+        }
+        function esSuperUsuario(u) {
+            return !!(u && u.rol === 'SuperAdmin');
+        }
+
+        // El campo FA es obligatorio para Admin y User (quedan atados a esa FA).
+        // Para Super Usuario es opcional, ya que puede ver y crear en todas.
+        function actualizarVisibilidadFANuevoUsuario() {
+            const rol = document.getElementById('new-role').value;
+            const inputFA = document.getElementById('new-fa');
+            if (rol === 'SuperAdmin') {
+                inputFA.required = false;
+                document.getElementById('new-fa-group').style.opacity = '0.6';
+            } else {
+                inputFA.required = true;
+                document.getElementById('new-fa-group').style.opacity = '1';
+            }
+        }
+
         const listaVinetasFijas = [
             "AldoUnion", "Andifar", "Calox", "Chalver", "Corfarma", "DINSULA",
             "Dromeinter", "DrogFrancesa", "DrogGuardado", "DrogHasther", "DrogRejuwe", "DrogUniversal",
@@ -537,6 +744,7 @@
             }
         }
         generarListadoSucursales();
+        actualizarVisibilidadFANuevoUsuario();
 
         function actualizarDatalistEnPantalla() {
             document.getElementById('total-products-msg').innerText = listadoProductos.length > 0 ? `Catálogo actual: ${listadoProductos.length} productos listos.` : "Catálogo vacío. Cargue el archivo oficial en el panel de administración.";
@@ -664,7 +872,6 @@
         });
         // ── Fin Autocomplete ────────────────────────────────────────
 
-        // Cargar archivo de Políticas Comerciales (.xlsx)
         document.getElementById('politicas-file-input').addEventListener('change', function(e) {
             const file = e.target.files[0];
             if (!file) return;
@@ -725,6 +932,8 @@
         }
 
         function evaluarEstadoRecuperacion(proveedor, laboratorio) {
+            proveedor = proveedor != null ? String(proveedor) : "";
+            laboratorio = laboratorio != null ? String(laboratorio) : "";
             if (!proveedor || proveedor === "" || proveedor === "Sin Politica") {
                 return "Irrecuperable";
             }
@@ -739,6 +948,8 @@
         }
 
         function obtenerPolitica(proveedor, laboratorio) {
+            proveedor = proveedor != null ? String(proveedor) : "";
+            laboratorio = laboratorio != null ? String(laboratorio) : "";
             if (!proveedor || !laboratorio || Object.keys(maestroPoliticas).length === 0) return null;
             let clave = proveedor.toLowerCase() + "||" + laboratorio.toLowerCase();
             return maestroPoliticas[clave] || null;
@@ -775,17 +986,250 @@
         }
         actualizarMensajeEstadoPoliticas();
 
-        if (localStorage.getItem('mapa_top10_ventas')) {
-            mapaTop10Ventas = JSON.parse(localStorage.getItem('mapa_top10_ventas'));
-            actualizarMensajeEstadoVentas();
-        }
-
         function actualizarMensajeEstadoVentas() {
             const numProds = Object.keys(mapaTop10Ventas).length;
             const msgEl = document.getElementById('ventas-status-msg');
             if (msgEl) {
                 msgEl.innerText = numProds > 0 ? `✓ Base de datos analítica activa: ${numProds} productos mapeados.` : "Sin datos de venta masiva cargados.";
             }
+        }
+
+        // Cargar caché de ventas al arrancar la aplicación
+        document.addEventListener("DOMContentLoaded", async () => {
+            const ventasCache = await obtenerDeCacheVentas();
+            if (ventasCache) {
+                mapaTop10Ventas = ventasCache;
+                actualizarMensajeEstadoVentas();
+                actualizarTablaReporte();
+            }
+        });
+
+        // Fuente única de verdad: qué registros puede ver el usuario actual
+        // antes de aplicar los filtros de la UI (sucursal/mes/etc).
+        // SuperAdmin: todo. Admin y User: solo los de su FA asignada.
+        function obtenerVencidosVisibles() {
+            if (!usuarioActual || esSuperUsuario(usuarioActual)) {
+                return [...globalVencidos];
+            }
+            const faAsignada = (usuarioActual.sucursal || '').toUpperCase();
+            return globalVencidos.filter(item => item.sucursal && String(item.sucursal).toUpperCase() === faAsignada);
+        }
+
+        // Un producto está "en riesgo con venta en otra FA" cuando, según el
+        // reporte masivo de ventas cargado, alguna sucursal DISTINTA a la de
+        // origen del vencido sí registra venta de ese producto: es candidato
+        // a traslado/redistribución en lugar de perderse.
+        function tieneVentaEnOtraFA(item) {
+            const registros = mapaTop10Ventas[item.producto];
+            if (!registros || !registros.length) return false;
+            return registros.some(r =>
+                String(r.sucursal).toUpperCase() !== String(item.sucursal || '').toUpperCase() &&
+                Number(r.quantity) > 0
+            );
+        }
+
+        function calcularStatsRiesgoOtraFA() {
+            let base = obtenerVencidosVisibles();
+
+            // Si hay filtros activos en el reporte (Sucursal, Mes Venc., Mes Reg.,
+            // Política o Estado Gestión), el dashboard se recalcula solo con lo
+            // que esos filtros dejan visible.
+            const selectSucursal = document.getElementById('filter-sucursal');
+            const selectMesVenc = document.getElementById('filter-mes-venc');
+            const selectMesReg = document.getElementById('filter-mes-registro');
+            const selectRecuperacion = document.getElementById('filter-recuperacion');
+            const selectGestion = document.getElementById('filter-estado-gestion');
+
+            const filtroSucursalActivo = selectSucursal ? selectSucursal.value : '';
+            const filtroMesVencActivo = selectMesVenc ? selectMesVenc.value : '';
+            const filtroMesRegActivo = selectMesReg ? selectMesReg.value : '';
+            const filtroRecuperacionActivo = selectRecuperacion ? selectRecuperacion.value : '';
+            const filtroGestionActivo = selectGestion ? selectGestion.value : '';
+
+            if (filtroSucursalActivo !== '') {
+                base = base.filter(item => item.sucursal && String(item.sucursal).toUpperCase() === filtroSucursalActivo.toUpperCase());
+            }
+            if (filtroMesVencActivo !== '') {
+                base = base.filter(item => item.mes === filtroMesVencActivo);
+            }
+            if (filtroMesRegActivo !== '') {
+                base = base.filter(item => item.mesRegistro === filtroMesRegActivo);
+            }
+            if (filtroRecuperacionActivo !== '') {
+                base = base.filter(item => item.estadoRecuperacion === filtroRecuperacionActivo);
+            }
+            if (filtroGestionActivo !== '') {
+                base = base.filter(item => (item.estadoGestion || 'Pendiente') === filtroGestionActivo);
+            }
+
+            base = base.filter(tieneVentaEnOtraFA);
+            let pendientes = 0, trabajados = 0, enviados = 0, impulsados = 0;
+            base.forEach(item => {
+                const g = item.estadoGestion || 'Pendiente';
+                if (g === 'Trabajado') trabajados++;
+                else if (g === 'Enviado') enviados++;
+                else if (g === 'Impulsado') impulsados++;
+                else pendientes++;
+            });
+            return {
+                total: base.length,
+                pendientes,
+                totalTrabajado: trabajados + enviados + impulsados,
+                trabajados, enviados, impulsados
+            };
+        }
+
+        function actualizarDashboardRiesgo() {
+            const elTotal = document.getElementById('dash-total-riesgo');
+            if (!elTotal) return; // el dashboard aún no está en pantalla (antes del login)
+
+            const stats = calcularStatsRiesgoOtraFA();
+            elTotal.innerText = stats.total.toLocaleString('es-HN');
+            document.getElementById('dash-pendientes').innerText = stats.pendientes.toLocaleString('es-HN');
+            document.getElementById('dash-trabajados').innerText = stats.totalTrabajado.toLocaleString('es-HN');
+
+            const pct = stats.total > 0 ? Math.round((stats.totalTrabajado / stats.total) * 100) : 0;
+            document.getElementById('dash-progreso-bar').style.width = pct + '%';
+            document.getElementById('dash-progreso-pct').innerText = pct + '%';
+            document.getElementById('dash-breakdown').innerText =
+                `✅ ${stats.trabajados} Trabajado · ✈️ ${stats.enviados} Enviado · 🚀 ${stats.impulsados} Impulsado`;
+
+            document.querySelectorAll('#dashboard-riesgo-card .stat-box').forEach(box => box.classList.remove('active'));
+            if (filtroSoloRiesgoOtraFA) {
+                const selector = filtroGestionAgrupadoRiesgo === 'pendiente' ? '.stat-pendiente'
+                                : filtroGestionAgrupadoRiesgo === 'trabajado' ? '.stat-trabajado'
+                                : '.stat-total';
+                const cajaActiva = document.querySelector('#dashboard-riesgo-card ' + selector);
+                if (cajaActiva) cajaActiva.classList.add('active');
+            }
+
+            const badge = document.getElementById('dash-filtro-activo-badge');
+            if (badge) badge.style.display = filtroSoloRiesgoOtraFA ? 'inline-block' : 'none';
+
+            const badgeFA = document.getElementById('dash-fa-activa-badge');
+            if (badgeFA) {
+                const partes = [];
+                const selectSucursal = document.getElementById('filter-sucursal');
+                const selectMesVenc = document.getElementById('filter-mes-venc');
+                const selectMesReg = document.getElementById('filter-mes-registro');
+                const selectRecuperacion = document.getElementById('filter-recuperacion');
+                const selectGestion = document.getElementById('filter-estado-gestion');
+
+                if (selectSucursal && selectSucursal.value !== '') partes.push('📍 ' + selectSucursal.value);
+                if (selectMesVenc && selectMesVenc.value !== '') partes.push('Venc: ' + selectMesVenc.value);
+                if (selectMesReg && selectMesReg.value !== '') partes.push('Reg: ' + selectMesReg.value);
+                if (selectRecuperacion && selectRecuperacion.value !== '') partes.push(selectRecuperacion.value);
+                if (selectGestion && selectGestion.value !== '') partes.push(selectGestion.value);
+
+                if (partes.length > 0) {
+                    badgeFA.innerText = partes.join(' · ');
+                    badgeFA.style.display = 'inline-block';
+                } else {
+                    badgeFA.style.display = 'none';
+                }
+            }
+
+            actualizarResumenPorFA();
+        }
+
+        // Tabla adicional exclusiva del SuperAdmin: desglose FA por FA de lo
+        // mismo que muestra el dashboard de riesgo, para poder comparar
+        // sucursales entre sí. Respeta los filtros de Mes Venc./Mes Reg./
+        // Política/Estado Gestión, pero ignora el de Sucursal (si no, no
+        // tendría sentido ver "todas las FA" a la vez).
+        function calcularResumenPorFA() {
+            let base = obtenerVencidosVisibles();
+
+            const selectMesVenc = document.getElementById('filter-mes-venc');
+            const selectMesReg = document.getElementById('filter-mes-registro');
+            const selectRecuperacion = document.getElementById('filter-recuperacion');
+            const selectGestion = document.getElementById('filter-estado-gestion');
+
+            if (selectMesVenc && selectMesVenc.value !== '') base = base.filter(item => item.mes === selectMesVenc.value);
+            if (selectMesReg && selectMesReg.value !== '') base = base.filter(item => item.mesRegistro === selectMesReg.value);
+            if (selectRecuperacion && selectRecuperacion.value !== '') base = base.filter(item => item.estadoRecuperacion === selectRecuperacion.value);
+            if (selectGestion && selectGestion.value !== '') base = base.filter(item => (item.estadoGestion || 'Pendiente') === selectGestion.value);
+
+            base = base.filter(tieneVentaEnOtraFA);
+
+            const porFA = {};
+            base.forEach(item => {
+                const fa = String(item.sucursal || 'Sin FA').toUpperCase();
+                if (!porFA[fa]) porFA[fa] = { fa, total: 0, pendientes: 0, trabajado: 0, enviado: 0, impulsado: 0 };
+                porFA[fa].total++;
+                const g = item.estadoGestion || 'Pendiente';
+                if (g === 'Trabajado') porFA[fa].trabajado++;
+                else if (g === 'Enviado') porFA[fa].enviado++;
+                else if (g === 'Impulsado') porFA[fa].impulsado++;
+                else porFA[fa].pendientes++;
+            });
+
+            return Object.values(porFA).sort((a, b) => a.fa.localeCompare(b.fa));
+        }
+
+        function actualizarResumenPorFA() {
+            const card = document.getElementById('dashboard-resumen-fa-card');
+            if (!card) return;
+
+            if (!usuarioActual || !esSuperUsuario(usuarioActual)) {
+                card.style.display = 'none';
+                return;
+            }
+            card.style.display = 'block';
+
+            const filas = calcularResumenPorFA();
+            const tbody = document.getElementById('tabla-resumen-fa-body');
+            if (!tbody) return;
+
+            if (filas.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="5" style="padding:12px; text-align:center; color:#888;">Sin registros en riesgo con venta en otras FA para los filtros actuales.</td></tr>';
+                return;
+            }
+
+            const selectSucursal = document.getElementById('filter-sucursal');
+            tbody.innerHTML = filas.map(f => {
+                const trabajados = f.trabajado + f.enviado + f.impulsado;
+                const pct = f.total > 0 ? Math.round((trabajados / f.total) * 100) : 0;
+                return `
+                    <tr style="border-bottom:1px solid var(--border-color); cursor:pointer;" onclick="filtrarResumenPorFA('${f.fa}')" title="Ver ${f.fa} en el reporte">
+                        <td style="padding:8px; font-weight:bold;">${f.fa}</td>
+                        <td style="padding:8px; text-align:right;">${f.total.toLocaleString('es-HN')}</td>
+                        <td style="padding:8px; text-align:right; color:#e65100;">${f.pendientes.toLocaleString('es-HN')}</td>
+                        <td style="padding:8px; text-align:right; color: var(--secondary-color);">${trabajados.toLocaleString('es-HN')}</td>
+                        <td style="padding:8px;">
+                            <div class="dash-progreso-track" style="width:100px; display:inline-block; vertical-align:middle;">
+                                <div class="dash-progreso-fill" style="width:${pct}%;"></div>
+                            </div>
+                            <span style="font-size:0.85em; color:#666; margin-left:6px;">${pct}%</span>
+                        </td>
+                    </tr>`;
+            }).join('');
+        }
+
+        function filtrarResumenPorFA(fa) {
+            const selectSucursal = document.getElementById('filter-sucursal');
+            if (selectSucursal) selectSucursal.value = fa;
+            actualizarTablaReporte();
+        }
+
+        function toggleFiltroRiesgoOtraFA() {
+            filtroSoloRiesgoOtraFA = document.getElementById('dash-toggle-filtro').checked;
+            if (!filtroSoloRiesgoOtraFA) filtroGestionAgrupadoRiesgo = '';
+            actualizarTablaReporte();
+        }
+
+        function filtrarDashboardRiesgo(tipo) {
+            filtroSoloRiesgoOtraFA = true;
+            document.getElementById('dash-toggle-filtro').checked = true;
+            filtroGestionAgrupadoRiesgo = (tipo === 'pendiente' || tipo === 'trabajado') ? tipo : '';
+            actualizarTablaReporte();
+        }
+
+        function quitarFiltroDashboardRiesgo() {
+            filtroSoloRiesgoOtraFA = false;
+            filtroGestionAgrupadoRiesgo = '';
+            document.getElementById('dash-toggle-filtro').checked = false;
+            actualizarTablaReporte();
         }
 
         function filtrarLista(lista) {
@@ -795,7 +1239,7 @@
             const filtroRec = document.getElementById('filter-recuperacion').value;
             const filtroGestion = document.getElementById('filter-estado-gestion').value;
 
-            if (filtroSucursal !== "") lista = lista.filter(item => item.sucursal && item.sucursal.toUpperCase() === filtroSucursal.toUpperCase());
+            if (filtroSucursal !== "") lista = lista.filter(item => item.sucursal && String(item.sucursal).toUpperCase() === filtroSucursal.toUpperCase());
             if (filtroMesVenc !== "") lista = lista.filter(item => item.mes && item.mes === filtroMesVenc);
             if (filtroMesRegistro !== "") lista = lista.filter(item => item.mesRegistro && item.mesRegistro === filtroMesRegistro);
             if (filtroRec !== "") lista = lista.filter(item => item.estadoRecuperacion === filtroRec);
@@ -805,7 +1249,7 @@
         }
 
         function exportarFormatoCargaMasiva() {
-            let listaFiltrada = [...globalVencidos];
+            let listaFiltrada = obtenerVencidosVisibles();
             listaFiltrada = filtrarLista(listaFiltrada);
 
             const datosMasivos = listaFiltrada.map(item => ({
@@ -840,7 +1284,6 @@
             XLSX.writeFile(libroTrabajo, "Formato_Carga_Masiva_Productos.xlsx");
         }
 
-        // CONTROL DE CARGA MASIVA INTEGRADO CON EL MAESTRO DE PROVEEDORES COMPLETO
         document.getElementById('productos-masivo-file-input').addEventListener('change', function(e) {
             const file = e.target.files[0];
             if (!file) return;
@@ -855,6 +1298,8 @@
                     if (registros.length === 0) { alert("El archivo de Excel seleccionado está vacío."); return; }
 
                     let nuevosRegistrosCargados = 0;
+                    let nuevosRegistrosArray = [];
+
                     registros.forEach((reg, index) => {
                         let sucursal = reg['Sucursal'] ? reg['Sucursal'].toString().trim().toUpperCase() : "";
                         let producto = reg['Producto'] ? reg['Producto'].toString().trim() : "";
@@ -927,11 +1372,14 @@
 
                             let estadoRecuperacion = evaluarEstadoRecuperacion(proveedor, laboratorio);
 
-                            globalVencidos.push({
+                            let itemNuevo = {
                                 id: Date.now() + index, sucursal, producto, laboratorio, proveedor, vineta: proveedor, cantidad, fecha: fechaVencTexto,
                                 mes: mesFormateado, anio: anioFormateado, fechaRegistro: fechaRegTexto, mesRegistro: mesRegistroTexto, 
                                 usuario: registradoPor, estadoRecuperacion: estadoRecuperacion, estadoGestion: estGestionExcel
-                            });
+                            };
+
+                            globalVencidos.push(itemNuevo);
+                            nuevosRegistrosArray.push(itemNuevo);
                             nuevosRegistrosCargados++;
                         }
                     });
@@ -942,6 +1390,10 @@
                     document.getElementById('productos-masivo-status').innerText = `✓ ¡Éxito! Se inyectaron al reporte ${nuevosRegistrosCargados} filas trabajadas desde el Excel.`;
                     alert(`¡Carga masiva finalizada con éxito!\nSe añadieron ${nuevosRegistrosCargados} registros analizados según su proveedor/viñeta.`);
                     document.getElementById('productos-masivo-file-input').value = "";
+
+                    if (nuevosRegistrosArray.length > 0) {
+                        enviarASheets(nuevosRegistrosArray);
+                    }
                 } catch (error) {
                     alert("Error crítico al analizar la estructura del Excel masivo.");
                 }
@@ -949,31 +1401,62 @@
             reader.readAsArrayBuffer(file);
         });
 
-        function actualizarEstadoGestionInteractiva(id, nuevoEstado) {
+        async function actualizarEstadoGestionInteractiva(id, nuevoEstado) {
             const index = globalVencidos.findIndex(item => item.id == id);
-            if (index !== -1) {
-                globalVencidos[index].estadoGestion = nuevoEstado;
-                localStorage.setItem('vencidos', JSON.stringify(globalVencidos));
+            if (index === -1) return;
+
+            const estadoActual = globalVencidos[index].estadoGestion || "Pendiente";
+
+            if (estadoActual !== "Pendiente") {
+                alert("⚠️ El Estado de Gestión ya fue definido (" + estadoActual + ") y no puede modificarse.");
+                actualizarTablaReporte();
+                return;
+            }
+
+            globalVencidos[index].estadoGestion = nuevoEstado;
+            localStorage.setItem('vencidos', JSON.stringify(globalVencidos));
+
+            await enviarActualizacionEstadoGestion(id, nuevoEstado);
+        }
+
+        async function enviarActualizacionEstadoGestion(id, nuevoEstado) {
+            if (!WEB_APP_URL || WEB_APP_URL.includes("TU_URL")) return;
+
+            try {
+                await fetch(WEB_APP_URL, {
+                    method: "POST",
+                    mode: "no-cors",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ action: "actualizarEstadoGestion", id: id, estadoGestion: nuevoEstado })
+                });
+            } catch (error) {
+                console.error("Error al sincronizar Estado de Gestión con Sheets:", error);
             }
         }
 
-        // Carga Masiva de Reporte Ventas (.xlsx)
+        // Carga Masiva de Reporte Ventas (.xlsx) optimizada con IndexedDB
         document.getElementById('ventas-file-input').addEventListener('change', function(e) {
             const file = e.target.files[0];
             if (!file) return;
 
+            Swal.fire({
+                title: 'Procesando archivo masivo...',
+                text: 'Por favor espere mientras se cargan y estructuran los +240k registros de ventas.',
+                allowOutsideClick: false,
+                didOpen: () => { Swal.showLoading(); }
+            });
+
             const reader = new FileReader();
-            reader.onload = function(evt) {
+            reader.onload = async function(evt) {
                 try {
                     const data = new Uint8Array(evt.target.result);
                     const workbook = XLSX.read(data, { type: 'array' });
                     const registros = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]);
                     
-                    if(registros.length === 0) { alert("El archivo está vacío."); return; }
+                    if(registros.length === 0) { throw new Error("El archivo está vacío."); }
 
                     if (!('Sucursal' in registros[0]) || !('Producto' in registros[0]) || !('Cantidad' in registros[0])) {
-                        alert("Estructura inválida. Las columnas deben ser exactamente: 'Sucursal', 'Producto' y 'Cantidad'.");
-                        return;
+                        throw new Error("Estructura inválida. Las columnas deben ser exactamente: 'Sucursal', 'Producto' y 'Cantidad'.");
                     }
 
                     let mapaTemporal = {};
@@ -1003,19 +1486,23 @@
                         mapaFinal[prod] = sucursalesArreglo;
                     }
 
+                    // Guardado seguro en IndexedDB
+                    await guardarEnCacheVentas(mapaFinal);
                     mapaTop10Ventas = mapaFinal;
-                    localStorage.setItem('mapa_top10_ventas', JSON.stringify(mapaTop10Ventas));
+
+                    Swal.close();
                     actualizarMensajeEstadoVentas();
                     actualizarTablaReporte();
-                    alert("¡Éxito! El archivo masivo de ventas fue procesado y estructurado correctamente.");
+                    Swal.fire('¡Éxito!', 'El archivo masivo de ventas (+240k registros) fue procesado y guardado en la caché local sin errores.', 'success');
                 } catch (error) {
-                    alert("Error al procesar el archivo de ventas.");
+                    Swal.close();
+                    console.error(error);
+                    Swal.fire('Error', error.message, 'error');
                 }
             };
             reader.readAsArrayBuffer(file);
         });
 
-        // Cargar Catálogo Oficial (.xlsx)
         document.getElementById('excel-file-input').addEventListener('change', function(e) {
             const file = e.target.files[0];
             if (!file) return;
@@ -1063,22 +1550,21 @@
             reader.readAsArrayBuffer(file);
         });
 
-        // Restauración desde Copias de Seguridad (.json)
         document.getElementById('backup-file-input').addEventListener('change', function(e) {
             const file = e.target.files[0];
             if (!file) return;
 
             const reader = new FileReader();
-            reader.onload = function(evt) {
+            reader.onload = async function(evt) {
                 try {
                     const datosRestaurados = JSON.parse(evt.target.result);
                     if (datosRestaurados.vencidos && datosRestaurados.usuarios && datosRestaurados.catalogo) {
                         if (confirm("¿Estás seguro de restaurar este backup?")) {
                             localStorage.setItem('vencidos', JSON.stringify(datosRestaurados.vencidos));
-                            localStorage.setItem('usuarios', JSON.stringify(datosRestaurados.usuarios));
+                            usuariosCache = datosRestaurados.usuarios;
                             localStorage.setItem('catalogo_excel_vencidos', JSON.stringify(datosRestaurados.catalogo));
                             if (datosRestaurados.mapaTop10Ventas) {
-                                localStorage.setItem('mapa_top10_ventas', JSON.stringify(datosRestaurados.mapaTop10Ventas));
+                                await guardarEnCacheVentas(datosRestaurados.mapaTop10Ventas);
                                 mapaTop10Ventas = datosRestaurados.mapaTop10Ventas;
                             }
                             if (datosRestaurados.mapaProductosLaboratorios) {
@@ -1120,23 +1606,29 @@
         }
         actualizarDatalistEnPantalla();
 
-        if (!localStorage.getItem('usuarios')) {
-            localStorage.setItem('usuarios', JSON.stringify([
-                { usuario: 'admin', contrasena: 'admin123', rol: 'Admin' },
-                { usuario: 'empleado', contrasena: '123', rol: 'User' }
-            ]));
-        }
-        
+        let usuariosCache = [];
+
         globalVencidos = JSON.parse(localStorage.getItem('vencidos')) || [];
         globalVencidos.forEach(item => {
             item.estadoRecuperacion = evaluarEstadoRecuperacion(item.proveedor, item.laboratorio);
         });
 
-        function login() {
+        async function login() {
             const userIn = document.getElementById('login-user').value.trim();
             const passIn = document.getElementById('login-pass').value;
             const errorDiv = document.getElementById('login-error');
-            const cuenta = JSON.parse(localStorage.getItem('usuarios')).find(u => u.usuario.toLowerCase() === userIn.toLowerCase() && u.contrasena === passIn);
+            errorDiv.style.color = '';
+            errorDiv.innerText = 'Verificando...';
+
+            const usuarios = await cargarUsuariosDesdeSheets();
+
+            if (!usuarios || usuarios.length === 0) {
+                errorDiv.style.color = '#dc3545';
+                errorDiv.innerText = 'No se pudo conectar con la hoja de usuarios. Verifica tu conexión.';
+                return;
+            }
+
+            const cuenta = usuarios.find(u => u.usuario.toLowerCase() === userIn.toLowerCase() && String(u.contrasena) === passIn);
 
             if (cuenta) {
                 usuarioActual = cuenta;
@@ -1146,23 +1638,44 @@
                 document.getElementById('current-user-display').innerText = cuenta.usuario;
                 document.getElementById('current-role-display').innerText = cuenta.rol;
 
-                if (cuenta.rol === 'Admin') {
+                if (esAdminOSuperior(cuenta)) {
                     document.getElementById('admin-panel').style.display = 'block';
                     document.getElementById('admin-export-section').style.display = 'block';
                     document.getElementById('admin-filters-container').style.display = 'flex';
-                    document.getElementById('th-acciones-reporte').style.display = 'table-cell';
                     document.getElementById('tip-modal-msg').style.display = 'block';
                     actualizarTablaUsuarios();
                 } else {
                     document.getElementById('admin-panel').style.display = 'none';
                     document.getElementById('admin-export-section').style.display = 'none';
                     document.getElementById('admin-filters-container').style.display = 'none';
-                    document.getElementById('th-acciones-reporte').style.display = 'none';
                     document.getElementById('tip-modal-msg').style.display = 'none';
                 }
+                document.getElementById('th-acciones-reporte').style.display = esSuperUsuario(cuenta) ? 'table-cell' : 'none';
+
+                // Admin y User quedan atados a su FA asignada: el campo se
+                // precarga y se bloquea para que no puedan registrar en otra.
+                const inputSucursal = document.getElementById('prod-sucursal');
+                if (!esSuperUsuario(cuenta)) {
+                    inputSucursal.value = cuenta.sucursal || '';
+                    inputSucursal.readOnly = true;
+                    inputSucursal.style.backgroundColor = '#eef2f7';
+                    inputSucursal.title = 'Solo puedes registrar en tu FA asignada: ' + (cuenta.sucursal || '(sin asignar)');
+                } else {
+                    inputSucursal.readOnly = false;
+                    inputSucursal.style.backgroundColor = '';
+                    inputSucursal.title = '';
+                }
+
+                if (!esSuperUsuario(cuenta) && !cuenta.sucursal) {
+                    alert('⚠️ Tu cuenta no tiene una FA asignada todavía. Contacta a un Super Usuario para que te asigne una antes de registrar productos.');
+                }
+
                 actualizarSelectProveedores();
                 actualizarTablaReporte();
+
+                cargarDesdeSheets();
             } else {
+                errorDiv.style.color = '#dc3545';
                 errorDiv.innerText = 'Usuario o contraseña incorrectos.';
             }
         }
@@ -1173,39 +1686,71 @@
             document.getElementById('login-container').style.display = 'block';
             document.getElementById('login-user').value = '';
             document.getElementById('login-pass').value = '';
+            const inputSucursal = document.getElementById('prod-sucursal');
+            inputSucursal.readOnly = false;
+            inputSucursal.style.backgroundColor = '';
+            inputSucursal.value = '';
         }
 
         function guardarProducto(e) {
             e.preventDefault();
-            const sucursal = document.getElementById('prod-sucursal').value.trim().toUpperCase();
-            const producto = document.getElementById('prod-name').value.trim();
-            const laboratorio = document.getElementById('prod-lab').value.trim() || "Sin Politica";
-            const proveedor = document.getElementById('prod-prov').value; 
-            const cantidad = document.getElementById('prod-qty').value;
-            const fecha = document.getElementById('prod-date').value;
+            try {
+                let sucursal = document.getElementById('prod-sucursal').value.trim().toUpperCase();
+                const producto = document.getElementById('prod-name').value.trim();
+                const laboratorio = document.getElementById('prod-lab').value.trim() || "Sin Politica";
+                const proveedor = document.getElementById('prod-prov').value; 
+                const cantidad = document.getElementById('prod-qty').value;
+                const fecha = document.getElementById('prod-date').value;
 
-            const fechaObj = new Date(fecha + 'T00:00:00');
-            const nMes = fechaObj.toLocaleString('es-HN', { month: 'long' });
-            const mesFormateado = nMes.charAt(0).toUpperCase() + nMes.slice(1);
-            
-            const hoy = new Date();
-            const fechaRegistroTexto = hoy.toLocaleDateString('es-HN', { year: 'numeric', month: '2-digit', day: '2-digit' });
-            const nMesReg = hoy.toLocaleString('es-HN', { month: 'long' });
+                if (!usuarioActual) {
+                    alert("No hay una sesión activa. Por favor inicia sesión de nuevo.");
+                    return;
+                }
 
-            let estadoRecuperacion = evaluarEstadoRecuperacion(proveedor, laboratorio);
+                // Admin y User solo pueden registrar en su FA asignada.
+                if (!esSuperUsuario(usuarioActual)) {
+                    if (!usuarioActual.sucursal) {
+                        alert("⚠️ Tu cuenta no tiene una FA asignada. Contacta a un Super Usuario.");
+                        return;
+                    }
+                    sucursal = usuarioActual.sucursal.toUpperCase();
+                }
 
-            globalVencidos.push({
-                id: Date.now(), sucursal, producto, laboratorio, proveedor, vineta: proveedor, cantidad, fecha,
-                mes: mesFormateado, anio: fechaObj.getFullYear(), fechaRegistro: fechaRegistroTexto, 
-                mesRegistro: nMesReg.charAt(0).toUpperCase() + nMesReg.slice(1), usuario: usuarioActual.usuario,
-                estadoRecuperacion: estadoRecuperacion, estadoGestion: 'Pendiente'
-            });
+                if (!sucursal || !producto || !cantidad || !fecha) {
+                    alert("Por favor completa todos los campos obligatorios (sucursal, producto, cantidad y fecha).");
+                    return;
+                }
 
-            localStorage.setItem('vencidos', JSON.stringify(globalVencidos));
-            actualizarSelectProveedores();
-            actualizarTablaReporte();
-            document.getElementById('vencidos-form').reset();
-            document.getElementById('form-diagnostico-container').style.display = 'none';
+                const fechaObj = new Date(fecha + 'T00:00:00');
+                const nMes = fechaObj.toLocaleString('es-HN', { month: 'long' });
+                const mesFormateado = nMes.charAt(0).toUpperCase() + nMes.slice(1);
+                
+                const hoy = new Date();
+                const fechaRegistroTexto = hoy.toLocaleDateString('es-HN', { year: 'numeric', month: '2-digit', day: '2-digit' });
+                const nMesReg = hoy.toLocaleString('es-HN', { month: 'long' });
+
+                let estadoRecuperacion = evaluarEstadoRecuperacion(proveedor, laboratorio);
+
+                let nuevoRegistro = {
+                    id: Date.now(), sucursal, producto, laboratorio, proveedor, vineta: proveedor, cantidad, fecha,
+                    mes: mesFormateado, anio: fechaObj.getFullYear(), fechaRegistro: fechaRegistroTexto, 
+                    mesRegistro: nMesReg.charAt(0).toUpperCase() + nMesReg.slice(1), usuario: usuarioActual.usuario,
+                    estadoRecuperacion: estadoRecuperacion, estadoGestion: 'Pendiente'
+                };
+
+                globalVencidos.push(nuevoRegistro);
+
+                localStorage.setItem('vencidos', JSON.stringify(globalVencidos));
+                actualizarSelectProveedores();
+                actualizarTablaReporte();
+                document.getElementById('vencidos-form').reset();
+                document.getElementById('form-diagnostico-container').style.display = 'none';
+
+                enviarASheets(nuevoRegistro);
+            } catch (error) {
+                console.error("Error al guardar el producto:", error);
+                alert("Ocurrió un error al guardar el producto: " + error.message + "\n\nRevisa la consola (F12) para más detalles.");
+            }
         }
 
         function poblarSelectoresFiltros() {
@@ -1225,8 +1770,8 @@
             
             let sucursalesUnicas = new Set(), mesesVencUnicos = new Set(), mesesRegUnicos = new Set();
             
-            globalVencidos.forEach(item => {
-                if (item.sucursal) sucursalesUnicas.add(item.sucursal.toUpperCase());
+            obtenerVencidosVisibles().forEach(item => {
+                if (item.sucursal) sucursalesUnicas.add(String(item.sucursal).toUpperCase());
                 if (item.mes) mesesVencUnicos.add(item.mes);
                 if (item.mesRegistro) mesesRegUnicos.add(item.mesRegistro);
             });
@@ -1247,29 +1792,46 @@
         }
 
         function actualizarTablaReporte() {
-            let listaVisualizacion = [...globalVencidos];
-            if (usuarioActual) {
-                if (usuarioActual.rol === 'Admin') {
-                    listaVisualizacion = filtrarLista(listaVisualizacion);
-                } else {
-                    listaVisualizacion = listaVisualizacion.filter(item => item.usuario && item.usuario.toLowerCase() === usuarioActual.usuario.toLowerCase());
-                }
+            let listaVisualizacion = obtenerVencidosVisibles();
+            if (usuarioActual && esAdminOSuperior(usuarioActual)) {
+                listaVisualizacion = filtrarLista(listaVisualizacion);
             }
 
+            // Filtro del Dashboard de Riesgo (venta en otras FA), aplica a cualquier rol
+            if (filtroSoloRiesgoOtraFA) {
+                listaVisualizacion = listaVisualizacion.filter(tieneVentaEnOtraFA);
+            }
+            if (filtroGestionAgrupadoRiesgo === 'pendiente') {
+                listaVisualizacion = listaVisualizacion.filter(item => (item.estadoGestion || 'Pendiente') === 'Pendiente');
+            } else if (filtroGestionAgrupadoRiesgo === 'trabajado') {
+                listaVisualizacion = listaVisualizacion.filter(item => (item.estadoGestion || 'Pendiente') !== 'Pendiente');
+            }
+
+            // Buscador de producto (aplica a cualquier rol)
+            const inputBusqueda = document.getElementById('buscador-producto');
+            const textoBusqueda = inputBusqueda ? inputBusqueda.value.trim().toLowerCase() : '';
+            if (textoBusqueda !== '') {
+                listaVisualizacion = listaVisualizacion.filter(item =>
+                    String(item.producto || '').toLowerCase().includes(textoBusqueda)
+                );
+            }
+
+            actualizarDashboardRiesgo();
             poblarSelectoresFiltros();
             const tbody = document.querySelector('#reporte-table tbody');
             tbody.innerHTML = '';
             listaVisualizacion.sort((a, b) => new Date(a.fecha) - new Date(b.fecha));
 
             listaVisualizacion.forEach(item => {
+              try {
                 const tr = document.createElement('tr');
-                let celdaAcciones = usuarioActual && usuarioActual.rol === 'Admin' ? `<td><button class="btn-delete-item" onclick='eliminarRegistroVencido(${item.id})'>Eliminar</button></td>` : '';
-                const productoEscapado = item.producto.replace(/'/g, "\\'").replace(/"/g, '&quot;');
-                let productoHTML = usuarioActual && usuarioActual.rol === 'Admin' ? `<strong class="clickable-product" onclick="verTop10Ventas('${productoEscapado}')">${item.producto}</strong>` : `<strong>${item.producto}</strong>`;
+                let celdaAcciones = esSuperUsuario(usuarioActual) ? `<td><button class="btn-delete-item" onclick='eliminarRegistroVencido(${item.id})'>Eliminar</button></td>` : '';
+                const productoEscapado = String(item.producto || '').replace(/'/g, "\\'").replace(/"/g, '&quot;');
+                let productoHTML = esAdminOSuperior(usuarioActual) ? `<strong class="clickable-product" onclick="verTop10Ventas('${productoEscapado}')">${item.producto}</strong>` : `<strong>${item.producto}</strong>`;
 
                 let ventaHistoricaSucursal = 0;
                 if (mapaTop10Ventas[item.producto]) {
-                    let recordSuc = mapaTop10Ventas[item.producto].find(f => f.sucursal.toUpperCase() === item.sucursal.toUpperCase());
+                    let recordSuc = mapaTop10Ventas[item.producto].find(f => String(f.sucursal).toUpperCase() === String(item.sucursal).toUpperCase());
                     if (recordSuc) ventaHistoricaSucursal = recordSuc.quantity;
                 }
 
@@ -1287,14 +1849,25 @@
                 if (actualGestion === "Enviado") colorFondoSelect = "#cce5ff";
                 if (actualGestion === "Impulsado") colorFondoSelect = "#e2d0f8";
 
-                let selectorGestionHTML = `
-                    <select class="select-interactivo" style="background-color: ${colorFondoSelect};" onchange="actualizarEstadoGestionInteractiva(${item.id}, this.value); actualizarTablaReporte();">
-                        <option value="Pendiente" ${actualGestion === 'Pendiente' ? 'selected' : ''}>⏳ Pendiente</option>
-                        <option value="Trabajado" ${actualGestion === 'Trabajado' ? 'selected' : ''}>✅ Trabajado</option>
-                        <option value="Enviado" ${actualGestion === 'Enviado' ? 'selected' : ''}>✈️ Enviado</option>
-                        <option value="Impulsado" ${actualGestion === 'Impulsado' ? 'selected' : ''}>🚀 Impulsado</option>
-                    </select>
-                `;
+                const iconosGestion = { Pendiente: '⏳', Trabajado: '✅', Enviado: '✈️', Impulsado: '🚀' };
+
+                let selectorGestionHTML;
+                if (actualGestion === 'Pendiente') {
+                    selectorGestionHTML = `
+                        <select class="select-interactivo" style="background-color: ${colorFondoSelect};" onchange="actualizarEstadoGestionInteractiva(${item.id}, this.value); actualizarTablaReporte();">
+                            <option value="Pendiente" selected>⏳ Pendiente</option>
+                            <option value="Trabajado">✅ Trabajado</option>
+                            <option value="Enviado">✈️ Enviado</option>
+                            <option value="Impulsado">🚀 Impulsado</option>
+                        </select>
+                    `;
+                } else {
+                    selectorGestionHTML = `
+                        <span class="badge" style="background-color: ${colorFondoSelect}; cursor: not-allowed;" title="El Estado de Gestión ya fue definido y no puede modificarse">
+                            ${iconosGestion[actualGestion] || ''} ${actualGestion} 🔒
+                        </span>
+                    `;
+                }
 
                 tr.innerHTML = `
                     <td><span class="badge badge-sucursal">${item.sucursal}</span></td>
@@ -1313,11 +1886,14 @@
                     ${celdaAcciones}
                 `;
                 tbody.appendChild(tr);
+              } catch (error) {
+                console.error("No se pudo mostrar un registro (datos corruptos):", item, error);
+              }
             });
         }
 
         function verTop10Ventas(nombreProducto) {
-            if (usuarioActual && usuarioActual.rol !== 'Admin') return;
+            if (usuarioActual && !esAdminOSuperior(usuarioActual)) return;
             document.getElementById('modal-producto-titulo').innerText = nombreProducto;
             const subText = document.getElementById('modal-producto-sub');
             const tbody = document.querySelector('#modal-top10-table tbody');
@@ -1340,17 +1916,22 @@
         function cerrarModal() { document.getElementById('top10-modal').style.display = 'none'; }
 
         function eliminarRegistroVencido(id) {
-            if (usuarioActual && usuarioActual.rol !== 'Admin') return;
+            if (!esSuperUsuario(usuarioActual)) {
+                alert("⚠️ Solo un Super Usuario puede eliminar registros.");
+                return;
+            }
             if (confirm("¿Eliminar este producto?")) {
                 globalVencidos = globalVencidos.filter(item => item.id !== id);
                 localStorage.setItem('vencidos', JSON.stringify(globalVencidos));
                 actualizarTablaReporte();
+
+                enviarEliminacionASheets(id);
             }
         }
 
         function exportarAReporteExcelAvanzado() {
-            if (usuarioActual && usuarioActual.rol !== 'Admin') return;
-            let listaVencidos = [...globalVencidos];
+            if (usuarioActual && !esAdminOSuperior(usuarioActual)) return;
+            let listaVencidos = obtenerVencidosVisibles();
             listaVencidos = filtrarLista(listaVencidos);
 
             if (listaVencidos.length === 0) { alert("No hay registros para exportar."); return; }
@@ -1365,7 +1946,7 @@
 
                 let ventaHistoricaSucursal = 0;
                 if (mapaTop10Ventas[item.producto]) {
-                    let recordSuc = mapaTop10Ventas[item.producto].find(f => f.sucursal.toUpperCase() === item.sucursal.toUpperCase());
+                    let recordSuc = mapaTop10Ventas[item.producto].find(f => String(f.sucursal).toUpperCase() === String(item.sucursal).toUpperCase());
                     if (recordSuc) ventaHistoricaSucursal = recordSuc.quantity;
                 }
 
@@ -1389,58 +1970,259 @@
         }
 
         function generarBackupSistema() {
-            if (usuarioActual && usuarioActual.rol !== 'Admin') return;
-            const estructura = { vencidos: globalVencidos, usuarios: JSON.parse(localStorage.getItem('usuarios')), catalogo: listadoProductos, mapaTop10Ventas, mapaProductosLaboratorios, maestroPoliticas };
+            // Contiene los vencidos de TODAS las FA, así que queda reservado
+            // al Super Usuario (Admin/User solo deben ver/exportar su propia FA).
+            if (!esSuperUsuario(usuarioActual)) {
+                alert("⚠️ Solo un Super Usuario puede generar el backup completo del sistema.");
+                return;
+            }
+            const estructura = { vencidos: globalVencidos, usuarios: usuariosCache, catalogo: listadoProductos, mapaTop10Ventas, mapaProductosLaboratorios, maestroPoliticas };
             const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(estructura, null, 2));
             const a = document.createElement('a'); a.setAttribute("href", dataStr); a.setAttribute("download", `Backup_Sistema_Vencidos.json`); a.click();
         }
 
-        function crearUsuario(e) {
+        async function crearUsuario(e) {
             e.preventDefault();
             const nuevoUser = document.getElementById('new-username').value.trim();
             const nuevaPass = document.getElementById('new-password').value;
             const nuevoRol = document.getElementById('new-role').value;
-            const usuarios = JSON.parse(localStorage.getItem('usuarios'));
+            const nuevaFA = document.getElementById('new-fa').value.trim().toUpperCase();
 
-            if (usuarios.some(u => u.usuario.toLowerCase() === nuevoUser.toLowerCase())) { return alert('El nombre de usuario ya existe.'); }
-            usuarios.push({ usuario: nuevoUser, contrasena: nuevaPass, rol: nuevoRol });
-            localStorage.setItem('usuarios', JSON.stringify(usuarios));
-            actualizarTablaUsuarios();
+            if (!nuevoUser || !nuevaPass) return alert('Usuario y contraseña son obligatorios.');
+            if (usuariosCache.some(u => u.usuario.toLowerCase() === nuevoUser.toLowerCase())) { return alert('El nombre de usuario ya existe.'); }
+            if (nuevoRol !== 'SuperAdmin' && !nuevaFA) { return alert('Debe asignar una FA al usuario (obligatoria para Admin y Usuario Normal).'); }
+
             document.getElementById('user-form').reset();
+            actualizarVisibilidadFANuevoUsuario();
+            await enviarAccionUsuarioASheets({ action: "crearUsuario", usuario: nuevoUser, contrasena: nuevaPass, rol: nuevoRol, sucursal: nuevaFA });
         }
 
         function actualizarTablaUsuarios() {
-            const usuarios = JSON.parse(localStorage.getItem('usuarios')) || [];
             const tbody = document.querySelector('#users-table tbody');
             tbody.innerHTML = '';
-            
-            usuarios.forEach((u, index) => {
+
+            usuariosCache.forEach((u, index) => {
                 const tr = document.createElement('tr');
-                let claseBotonRol = u.rol === 'Admin' ? 'btn-role-admin' : 'btn-role-user';
-                tr.innerHTML = `<td><strong>${u.usuario}</strong></td><td style="text-align: center;"><button class="btn-role-toggle ${claseBotonRol}" onclick="toggleAdminRole(${index})">${u.rol}</button></td><td style="text-align: right;"><button class="btn-action btn-password" onclick="cambiarClaveUsuario(${index})">🔑 Clave</button></td>`;
+                let claseBotonRol = u.rol === 'SuperAdmin' ? 'btn-role-super' : (u.rol === 'Admin' ? 'btn-role-admin' : 'btn-role-user');
+                let etiquetaRol = u.rol === 'SuperAdmin' ? 'Super Usuario' : (u.rol === 'Admin' ? 'Admin' : 'User');
+                let faDisplay = u.sucursal ? `<span class="badge badge-sucursal">${u.sucursal}</span>` : (u.rol === 'SuperAdmin' ? '<span style="color:#6c757d; font-size:0.85em;">Todas</span>' : '<span style="color:#dc3545; font-size:0.85em;">Sin asignar</span>');
+                tr.innerHTML = `<td><strong>${u.usuario}</strong></td><td style="text-align: center;"><button class="btn-role-toggle ${claseBotonRol}" onclick="toggleAdminRole(${index})">${etiquetaRol}</button></td><td style="text-align: center; cursor:pointer;" onclick="cambiarFAUsuario(${index})" title="Clic para cambiar la FA asignada">${faDisplay}</td><td style="text-align: right;"><button class="btn-action btn-password" onclick="cambiarClaveUsuario(${index})">🔑 Clave</button> <button class="btn-delete-item" onclick="eliminarUsuario(${index})">🗑️</button></td>`;
                 tbody.appendChild(tr);
             });
         }
 
-        function toggleAdminRole(index) {
-            const usuarios = JSON.parse(localStorage.getItem('usuarios'));
-            if (usuarioActual && usuarioActual.usuario.toLowerCase() === usuarios[index].usuario.toLowerCase()) {
-                alert("⚠️ No puedes revocar tus propios permisos de Administrador estando en sesión."); return;
+        async function toggleAdminRole(index) {
+            const usuario = usuariosCache[index];
+            if (usuarioActual && usuarioActual.usuario.toLowerCase() === usuario.usuario.toLowerCase()) {
+                alert("⚠️ No puedes cambiar tu propio rol estando en sesión."); return;
             }
-            usuarios[index].rol = (usuarios[index].rol === 'Admin') ? 'User' : 'Admin';
-            localStorage.setItem('usuarios', JSON.stringify(usuarios));
-            actualizarTablaUsuarios();
+            let nuevoRol;
+            if (usuario.rol === 'User') nuevoRol = 'Admin';
+            else if (usuario.rol === 'Admin') nuevoRol = 'SuperAdmin';
+            else nuevoRol = 'User';
+
+            await enviarAccionUsuarioASheets({ action: "actualizarRolUsuario", usuario: usuario.usuario, rol: nuevoRol });
             actualizarTablaReporte();
         }
 
-        function cambiarClaveUsuario(index) {
-            const usuarios = JSON.parse(localStorage.getItem('usuarios'));
-            const p = prompt(`Ingrese la nueva contraseña para "${usuarios[index].usuario}":`);
+        async function cambiarClaveUsuario(index) {
+            const usuario = usuariosCache[index];
+            const p = prompt(`Ingrese la nueva contraseña para "${usuario.usuario}":`);
             if (p && p.trim() !== "") {
-                usuarios[index].contrasena = p.trim();
-                localStorage.setItem('usuarios', JSON.stringify(usuarios));
+                await enviarAccionUsuarioASheets({ action: "actualizarClaveUsuario", usuario: usuario.usuario, contrasena: p.trim() });
                 alert("Contraseña actualizada con éxito.");
             }
+        }
+
+        async function cambiarFAUsuario(index) {
+            const usuario = usuariosCache[index];
+            const nueva = prompt(`Ingrese la FA a asignar a "${usuario.usuario}" (ej: FA01). Déjelo vacío para "Sin asignar":`, usuario.sucursal || '');
+            if (nueva === null) return; // Canceló
+            const nuevaFA = nueva.trim().toUpperCase();
+            if (usuario.rol !== 'SuperAdmin' && !nuevaFA) {
+                alert('⚠️ Los usuarios Admin y User necesitan una FA asignada.');
+                return;
+            }
+            await enviarAccionUsuarioASheets({ action: "actualizarSucursalUsuario", usuario: usuario.usuario, sucursal: nuevaFA });
+            actualizarTablaReporte();
+        }
+
+        async function eliminarUsuario(index) {
+            const usuario = usuariosCache[index];
+            if (usuarioActual && usuarioActual.usuario.toLowerCase() === usuario.usuario.toLowerCase()) {
+                alert("⚠️ No puedes eliminar tu propio usuario estando en sesión."); return;
+            }
+            if (confirm(`¿Eliminar al usuario "${usuario.usuario}"?`)) {
+                await enviarAccionUsuarioASheets({ action: "eliminarUsuario", usuario: usuario.usuario });
+            }
+        }
+
+        async function cargarUsuariosDesdeSheets() {
+            if (!WEB_APP_URL || WEB_APP_URL.includes("TU_URL")) return usuariosCache;
+
+            try {
+                const respuesta = await fetch(WEB_APP_URL + "?tipo=usuarios&t=" + Date.now());
+                const usuarios = await respuesta.json();
+                if (Array.isArray(usuarios)) {
+                    usuariosCache = usuarios.map(u => {
+                        const rolNormalizado = String(u.rol || '').trim().toLowerCase();
+                        let rol = 'User';
+                        if (rolNormalizado === 'superadmin' || rolNormalizado === 'super usuario' || rolNormalizado === 'super') rol = 'SuperAdmin';
+                        else if (rolNormalizado === 'admin') rol = 'Admin';
+                        return {
+                            usuario: String(u.usuario || '').trim(),
+                            contrasena: String(u.contrasena !== undefined && u.contrasena !== null ? u.contrasena : '').trim(),
+                            rol: rol,
+                            sucursal: String(u.sucursal || '').trim().toUpperCase()
+                        };
+                    });
+                }
+            } catch (error) {
+                console.error("No se pudo cargar la lista de usuarios desde Sheets:", error);
+            }
+            return usuariosCache;
+        }
+
+        async function enviarAccionUsuarioASheets(payload) {
+            if (!WEB_APP_URL || WEB_APP_URL.includes("TU_URL")) return;
+
+            try {
+                await fetch(WEB_APP_URL, {
+                    method: "POST",
+                    mode: "no-cors",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify(payload)
+                });
+            } catch (error) {
+                console.error("Error al sincronizar usuario con Sheets:", error);
+            }
+
+            await cargarUsuariosDesdeSheets();
+            actualizarTablaUsuarios();
+        }
+
+        function enviarEliminacionASheets(id) {
+            if (!WEB_APP_URL || WEB_APP_URL.includes("TU_URL")) return;
+
+            fetch(WEB_APP_URL, {
+                method: "POST",
+                mode: "no-cors",
+                headers: {
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify({ action: "eliminar", id: id, solicitante: usuarioActual ? usuarioActual.usuario : "" })
+            })
+            .then(() => {
+                console.log("Registro eliminado también en Google Sheets.");
+            })
+            .catch(error => {
+                console.error("Error al eliminar en Sheets:", error);
+            });
+        }
+
+        async function cargarDesdeSheets() {
+            if (!WEB_APP_URL || WEB_APP_URL.includes("TU_URL")) return;
+
+            try {
+                const respuesta = await fetch(WEB_APP_URL + "?t=" + Date.now());
+                const registrosSheet = await respuesta.json();
+
+                if (!Array.isArray(registrosSheet)) return;
+
+                registrosSheet.forEach(item => {
+                    item.cantidad = parseInt(item.cantidad) || 0;
+                    item.sucursal = String(item.sucursal || '');
+                    item.producto = String(item.producto || '');
+                    item.laboratorio = String(item.laboratorio || '');
+                    item.proveedor = String(item.proveedor || '');
+                    item.usuario = String(item.usuario || '');
+                    item.mes = String(item.mes || '');
+                    item.mesRegistro = String(item.mesRegistro || '');
+                    item.estadoRecuperacion = evaluarEstadoRecuperacion(item.proveedor, item.laboratorio);
+                });
+
+                const idsEnSheet = new Set(registrosSheet.map(r => String(r.id)));
+                const pendientesLocales = globalVencidos.filter(item => !idsEnSheet.has(String(item.id)));
+
+                globalVencidos = [...registrosSheet, ...pendientesLocales];
+                localStorage.setItem('vencidos', JSON.stringify(globalVencidos));
+                actualizarTablaReporte();
+            } catch (error) {
+                console.error("No se pudo sincronizar con Google Sheets:", error);
+            }
+        }
+
+        // Sincronización manual (botón "🔄 Sincronizar"): a diferencia de
+        // cargarDesdeSheets(), que fusiona con lo que haya pendiente localmente,
+        // esta función REEMPLAZA por completo la vista local con lo que hay
+        // realmente guardado en el Sheet, para que el usuario vea siempre el
+        // estado real y no registros "fantasma" que nunca llegaron a guardarse.
+        async function sincronizarManual() {
+            if (!WEB_APP_URL || WEB_APP_URL.includes("TU_URL")) {
+                alert("La URL del Web App de Google Sheets no está configurada.");
+                return;
+            }
+
+            Swal.fire({
+                title: 'Sincronizando...',
+                text: 'Actualizando la vista con los datos del Sheet.',
+                allowOutsideClick: false,
+                allowEscapeKey: false,
+                didOpen: () => { Swal.showLoading(); }
+            });
+
+            try {
+                const respuesta = await fetch(WEB_APP_URL + "?t=" + Date.now());
+                if (!respuesta.ok) {
+                    throw new Error("El servidor respondió con estado " + respuesta.status);
+                }
+
+                const registrosSheet = await respuesta.json();
+                if (!Array.isArray(registrosSheet)) {
+                    throw new Error("La respuesta del Sheet no tiene el formato esperado.");
+                }
+
+                registrosSheet.forEach(item => {
+                    item.cantidad = parseInt(item.cantidad) || 0;
+                    item.sucursal = String(item.sucursal || '');
+                    item.producto = String(item.producto || '');
+                    item.laboratorio = String(item.laboratorio || '');
+                    item.proveedor = String(item.proveedor || '');
+                    item.usuario = String(item.usuario || '');
+                    item.mes = String(item.mes || '');
+                    item.mesRegistro = String(item.mesRegistro || '');
+                    item.estadoRecuperacion = evaluarEstadoRecuperacion(item.proveedor, item.laboratorio);
+                });
+
+                // Reemplazo total: lo que esté en el Sheet es la única fuente de verdad.
+                globalVencidos = registrosSheet;
+                localStorage.setItem('vencidos', JSON.stringify(globalVencidos));
+                actualizarTablaReporte();
+
+                Swal.fire('Sincronizado', `Se cargaron ${registrosSheet.length} registro(s) desde Google Sheets.`, 'success');
+            } catch (error) {
+                console.error("Error al sincronizar manualmente con Sheets:", error);
+                Swal.fire('Error al sincronizar', 'No se pudo traer la información del Sheet: ' + error.message, 'error');
+            }
+        }
+
+        function enviarASheets(payload) {
+            if (!WEB_APP_URL || WEB_APP_URL.includes("TU_URL")) return;
+
+            fetch(WEB_APP_URL, {
+                method: "POST",
+                mode: "no-cors",
+                headers: {
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify(payload)
+            })
+            .then(() => {
+                console.log("Datos sincronizados con Google Sheets correctamente.");
+            })
+            .catch(error => {
+                console.error("Error al sincronizar con Sheets:", error);
+            });
         }
     </script>
 </body>
